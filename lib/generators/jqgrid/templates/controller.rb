@@ -42,9 +42,9 @@ class <%= class_name.pluralize %>Controller < ApplicationController
       <%= model_name %>.errors.entries.each do |error|
         message << "<strong>#{<%= camel %>.human_attribute_name(error[0])}</strong> : #{error[1]}<br/>"
       end
-      render :json =>[false,message]
+      render :json =>[true, message]    # [display message, message (may be informative)]
     else
-      render :json => [true,message] 
+      render :json => [false, message] 
     end
   end
   

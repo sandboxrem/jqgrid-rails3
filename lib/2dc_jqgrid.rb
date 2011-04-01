@@ -18,7 +18,6 @@ module Jqgrid
     end
 
     def jqgrid(title, id, action, columns = [], options = {})
-      
       # Default options
       options = 
         { 
@@ -89,9 +88,9 @@ module Jqgrid
               window.setTimeout(function() {
                 $('#flash_alert').slideUp();
                 }, 3000);
-                return [resText[0]]
+                return false;
               }else{
-                return [resText[0],resText[1]]
+                return true;
               }
           }/
         end        
