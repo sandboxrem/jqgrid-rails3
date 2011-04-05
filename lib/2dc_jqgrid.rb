@@ -280,7 +280,6 @@ module Jqgrid
               pagerpos:'#{options[:pagerpos]}', 
               rowNum:#{options[:rows_per_page]},
               rowList:#{options[:rowlist]},
-              imgpath: '/images/jqgrid',
               viewrecords:#{options[:viewrecords]},
               height: #{options[:height]},
               #{"sortname: '#{options[:sort_column]}'," unless options[:sort_column].blank?}
