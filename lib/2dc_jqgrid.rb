@@ -52,7 +52,7 @@ module Jqgrid
           :shrinkToFit         => true,
           :form_width          => 300,
           :loadui              => :enable,
-          :context_menu        => {:menu_bindings => nil, :menu_id => nil},
+          :context_menu        => false,
           # Recreate the edit/add dialogs by default do not cache
           :recreateForm        => true
         }.merge(options)
@@ -92,28 +92,6 @@ module Jqgrid
           });/
       end
 
-      # Enable master-details
-      masterdetails = ""
-      if options[:master_details]
-        masterdetails = %Q/
-          onSelectRow: function(ids) { 
-            if(ids == null) { 
-              ids=0; 
-              if(jQuery("##{id}_details").getGridParam('records') >0 ) 
-              { 
-                jQuery("##{id}_details").setGridParam({url:"#{options[:details_url]}?q=1&id="+ids,page:1})
-                .setCaption("#{options[:details_caption]}: "+ids)
-                .trigger('reloadGrid'); 
-              } 
-            } 
-            else 
-            { 
-              jQuery("##{id}_details").setGridParam({url:"#{options[:details_url]}?q=1&id="+ids,page:1})
-              .setCaption("#{options[:details_caption]} : "+ids)
-              .trigger('reloadGrid'); 
-            } 
-          },/
-      end
 
       # Enable selection link, button
       # The javascript function created by the user (options[:selection_handler]) will be called with the selected row id as a parameter
@@ -143,30 +121,7 @@ module Jqgrid
         },/
       end
 
-      # Enable grid_loaded callback
-      # When data are loaded into the grid, call the Javascript function options[:grid_loaded] (defined by the user)
-      grid_loaded = ""
-      if options[:grid_loaded].present?
-        grid_loaded = %Q/
-        loadComplete: function(){ 
-          #{options[:grid_loaded]}();
-        },
-        /
-      end
-
-      
-      # Context menu
-      # See http://www.trendskitchens.co.nz/jquery/contextmenu/
-      # http://www.hard-bit.net/files/jqGrid-3.5/ContextMenu.html
-      # http://www.hard-bit.net/blog/?p=171
-      #
-      context_menu = ""
-      if options[:context_menu].size > 0 && !options[:context_menu][:menu_id].blank?
-        context_menu = %Q/
-        afterInsertRow: function(rowid, rowdata, rowelem){
-          $('#' + rowid).contextMenu('#{options[:context_menu][:menu_id]}', #{options[:context_menu][:menu_bindings]});
-        },/
-      end           
+ 
       
       # Enable subgrids
       subgrid = ""
@@ -293,7 +248,7 @@ module Jqgrid
               hidegrid: #{options[:hidegrid]}, 
               shrinkToFit: #{options[:shrinkToFit]}, 
               #{multiselect}
-              #{masterdetails}
+              #{master_details}
               #{grid_loaded}
               #{direct_link}
               #{editable}
@@ -380,7 +335,62 @@ module Jqgrid
     	end
 	end
 
+	# Enable master-details
+	def master_details
+		details_url = @options.delete(:details_url)
+		details_caption = @options.delete(:details_caption)
+		if @options.delete(:master_details)
+			%Q^
+				onSelectRow: function(ids) { 
+					if (ids == null) 
+					{ 
+						ids = 0; 
+						if (jQuery ("##{@id}_details").getGridParam('records') > 0) 
+						{ 
+							jQuery ("##{@id}_details").setGridParam({url:"#{details_url}?q=1&id="+ids,page:1})
+							.setCaption ("#{details_caption}: "+ids)
+							.trigger('reloadGrid'); 
+						} 
+					} 
+					else 
+					{ 
+						jQuery("##{id}_details").setGridParam({url:"#{details_url}?q=1&id="+ids,page:1})
+							.setCaption("#{details_caption} : "+ids)
+							.trigger('reloadGrid'); 
+					} 
+				},^
+		else
+			''
+		end
+	end
+	
+	# Enable grid_loaded callback
+    # When data are loaded into the grid, call the Javascript function options[:grid_loaded] (defined by the user)
+	def grid_loaded
+		if callback = @options.delete(:grid_loaded)
+			%Q^	loadComplete: function(){#{callback}();},^
+		end
+	end
 
+	# Context menu
+	# See http://www.trendskitchens.co.nz/jquery/contextmenu/
+	# http://www.hard-bit.net/files/jqGrid-3.5/ContextMenu.html
+	# http://www.hard-bit.net/blog/?p=171
+	# set to {:menu_bindings => xx, :menu_id => yy}, as needed.
+	def context_menu
+		if cm = @options.delete(:context_menu)
+			%Q^
+				afterInsertRow: function(rowid, rowdata, rowelem){
+					$('#' + rowid).contextMenu('#{cm[:menu_id]}', #{cm[:menu_bindings]});
+		},^
+		else
+			''
+		end
+	end
+
+
+
+	
     def gen_columns(columns)
       # Generate columns data
       col_names = "[" # Labels
