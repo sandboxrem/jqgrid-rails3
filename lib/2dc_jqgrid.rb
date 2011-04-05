@@ -1,6 +1,6 @@
 module Jqgrid
 
-  def jqgrid_stylesheets(theme="default")
+  	def jqgrid_stylesheets(theme="default")
       stylesheet_link_tag "jqgrid/themes/#{theme}/jquery-ui-1.8.custom.css", 
         'jqgrid/ui.jqgrid.css', 
         :cache => "jqgrid-#{theme}-css"
@@ -17,84 +17,52 @@ module Jqgrid
         :cache => 'jqgrid-js'
     end
 
+	@@app_options = {}
+	def self.jqgrid_app_options (options)
+		@@app_options = options
+	end
+	
     def jqgrid(title, id, action, columns = [], options = {})
-      # Default options
-      options = 
+ 		@id = id
+
+     	default_options = 
         { 
-          :rows_per_page       => '10',
+          :rows_per_page       => 10,
           :sort_column         => '',
           :sort_order          => '',
-          :height              => '240',
-          :gridview            => 'false',
-          # If specified will create a handler using the specified
-          # string as the name of the error handler function. Default
-          # error handling code will be created for this function.
-          :error_handler       => 'null',  
-          # The other option is to pass in the name of a custom error handler
-          # created external to this plugin, to use this do not specify an
-          # :error_handler option and specify the name of the custom error 
-          # handler using this option.
-          :custom_error_handler=> 'null',
+          :height              => 240,
+          :gridview            => false,
+          # Can be nil to disregard all errors, :default to show the errors or a
+		  # string holding the js error handler you want to use.
+          :error_handler       => :default,  
           :inline_edit_handler => 'null',         
-          :add                 => 'false',
-          :delete              => 'false',
-          :search              => 'true',
-          :edit                => 'false',          
-          :view                => 'false',          
-          :inline_edit         => 'false',
-          :autowidth           => 'false',
-          :rownumbers          => 'false',
-          :viewrecords         => 'true',
+          :add                 => false,
+          :delete              => false,
+          :search              => true,
+          :edit                => false,          
+          :view                => false,          
+          :inline_edit         => false,
+          :autowidth           => false,
+          :rownumbers          => false,
+          :viewrecords         => true,
           :rowlist             => '[10,25,50,100]',
-          :pagerpos            => 'center',
-          :hiddengrid          => 'false',
-          :hidegrid            => 'false',
-          :shrinkToFit         => 'true',
+          :pagerpos            => :center,
+          :hiddengrid          => false,
+          :hidegrid            => false,
+          :shrinkToFit         => true,
           :form_width          => 300,
-          :loadui              => 'enable',
+          :loadui              => :enable,
           :context_menu        => {:menu_bindings => nil, :menu_id => nil},
           # Recreate the edit/add dialogs by default do not cache
-          :recreateForm        => 'true'
+          :recreateForm        => true
         }.merge(options)
+
+		# Combine all options with default having the lowest priority, then any app level options and finally view specific
+		# options.
+ 		@options = options = default_options.merge(@@app_options).merge(options)
       
-      # Stringify options values
-      options.inject({}) do |options, (key, value)|
-        options[key] = (key != :subgrid && key != :context_menu) ? value.to_s : value
-        options
-      end
       
-      edit_button = (options[:edit].to_s == 'true' && options[:inline_edit].to_s == 'false').to_s
-      
-      # Setup error handler if required
-      error_handler_code = ''
-      error_handler_name = 'null'
-      if options[:error_handler] == 'null' && options[:custom_error_handler] == 'null'
-        # If no error handlers return true
-        options[:error_handler_return_value] = 'true;'
-      else
-        if options[:error_handler] == "null"
-          # Setup custom handler
-          error_handler_name = options[:custom_error_handler]
-          options[:error_handler_return_value] = options[:custom_error_handler]
-        else
-          # Construct default error handler code
-          error_handler_name = options[:error_handler]    
-          options[:error_handler_return_value] = options[:error_handler]
-          error_handler_code = %Q/function #{options[:error_handler]}(r, data, action) {
-            var resText=JSON.parse(r.responseText);
-            if (resText[0]==true) {
-              $('#flash_alert').html("<span class='ui-icon ui-icon-info' style='float:left; margin-right:.3em;'><\/span>"+resText[1]);
-              $('#flash_alert').slideDown();
-              window.setTimeout(function() {
-                $('#flash_alert').slideUp();
-                }, 3000);
-                return false;
-              }else{
-                return true;
-              }
-          }/
-        end        
-      end
+      edit_button = options[:edit] && !options[:inline_edit]
       
       # Generate columns data
       col_names, col_model = gen_columns(columns)
@@ -102,7 +70,7 @@ module Jqgrid
       # Enable filtering (by default)
       search = ""
       filter_toolbar = ""
-      if options[:search] == 'true'
+      if options[:search]
         search = %Q/.navButtonAdd("##{id}_pager",{caption:"",title:$.jgrid.nav.searchtitle, buttonicon :'ui-icon-search', onClickButton:function(){ mygrid[0].toggleToolbar() } })/
         filter_toolbar = "mygrid.filterToolbar();"
         filter_toolbar << "mygrid[0].toggleToolbar()"
@@ -186,19 +154,6 @@ module Jqgrid
         /
       end
 
-      # Enable inline editing
-      # When a row is selected, all fields are transformed to input types
-      editable = ""
-      if options[:edit] && options[:inline_edit] == 'true'
-        editable = %Q/
-        onSelectRow: function(id){ 
-          if(id && id!==lastsel){ 
-            jQuery('##{id}').restoreRow(lastsel);
-            jQuery('##{id}').editRow(id, true, #{options[:inline_edit_handler]}, #{error_handler_name});
-            lastsel=id; 
-          } 
-        },/
-      end
       
       # Context menu
       # See http://www.trendskitchens.co.nz/jquery/contextmenu/
@@ -223,16 +178,16 @@ module Jqgrid
         
         options[:subgrid] = 
           {
-            :rows_per_page => '10',
+            :rows_per_page => 10,
             :sort_column   => 'id',
             :sort_order    => 'asc',
-            :add           => 'false',
-            :edit          => 'false',
-            :delete        => 'false',
-            :search        => 'false',
-            :viewrecords   => 'true',
+            :add           => false,
+            :edit          => false,
+            :delete        => false,
+            :search        => false,
+            :viewrecords   => true,
             :rowlist       => '[10,25,50,100]',
-            :shrinkToFit   => 'false'
+            :shrinkToFit   => false
           }.merge(options[:subgrid])
 
         # Stringify options values
@@ -243,8 +198,8 @@ module Jqgrid
         
         subgrid_inline_edit = ""
         if options[:subgrid][:inline_edit] == true
-          options[:subgrid][:edit] = 'false'
-          subgrid_inline_edit = %Q/
+          options[:subgrid][:edit] = false
+          subgrid_inline_edit = %Q^
           onSelectRow: function(id){ 
             if(id && id!==lastsel){ 
               jQuery('#'+subgrid_table_id).restoreRow(lastsel);
@@ -252,7 +207,7 @@ module Jqgrid
               lastsel=id; 
             } 
           },
-          /
+          ^
         end
           
         if options[:subgrid][:direct_selection] && options[:subgrid][:selection_handler].present?
@@ -312,9 +267,9 @@ module Jqgrid
       # Generate required Javascript & html to create the jqgrid
       %Q(
         <script type="text/javascript">
-          #{error_handler_code}
+          #{error_handler}
           var lastsel;
-          #{'jQuery(document).ready(function(){' unless options[:omit_ready]=='true'}
+          #{'jQuery(document).ready(function(){' unless options[:omit_ready]}
           var mygrid = jQuery("##{id}").jqGrid({
               url:'#{action}?q=1',
               editurl:'#{options[:edit_url]}',
@@ -351,17 +306,17 @@ module Jqgrid
             .navGrid('##{id}_pager',
               {edit:#{edit_button},add:#{options[:add]},del:#{options[:delete]},view:#{options[:view]},search:false,refresh:true},
               // Edit options
-              {closeOnEscape:true,modal:true,recreateForm:#{options[:recreateForm]},width:#{options[:form_width]},closeAfterEdit:true,afterSubmit:function(r,data){return #{options[:error_handler_return_value]}(r,data,'edit');}},
+              {closeOnEscape:true,modal:true,recreateForm:#{options[:recreateForm]},width:#{options[:form_width]},closeAfterEdit:true,afterSubmit:function(r,data){return #{@error_handler_name}(r,data,'edit');}},
               // Add options
-              {closeOnEscape:true,modal:true,recreateForm:#{options[:recreateForm]},width:#{options[:form_width]},closeAfterAdd:true,afterSubmit:function(r,data){return #{options[:error_handler_return_value]}(r,data,'add');}},
+              {closeOnEscape:true,modal:true,recreateForm:#{options[:recreateForm]},width:#{options[:form_width]},closeAfterAdd:true,afterSubmit:function(r,data){return #{@error_handler_name}(r,data,'add');}},
               // Delete options
-              {closeOnEscape:true,modal:true,afterSubmit:function(r,data){return #{options[:error_handler_return_value]}(r,data,'delete');}}
+              {closeOnEscape:true,modal:true,afterSubmit:function(r,data){return #{@error_handler_name}(r,data,'delete');}}
             )
             #{search}
             #{multihandler}
             #{selection_link}
             #{filter_toolbar}
-          #{'})' unless options[:omit_ready]=='true'};
+          #{'})' unless options[:omit_ready]};
         </script>
         <div id="flash_alert" style="display:none;padding:0.7em;" class="ui-state-highlight ui-corner-all"></div>
         <table id="#{id}" class="scroll" cellpadding="0" cellspacing="0"></table>
@@ -370,7 +325,63 @@ module Jqgrid
     end
 
     private
-    
+ 
+	def error_handler
+	   	handler = @options.delete(:error_handler)
+		code = 
+			case handler
+				when nil
+					# Null error handler - just ignore all errors.
+					 %Q^function null_error_handler (r, data, action) 
+						{
+							return true
+						}
+						^
+				when :default
+				    # Construct default error handler code to display the error
+			        %Q^function default_error_handler (r, data, action) 
+					{
+			       		var resText = JSON.parse (r.responseText)
+			          	if (resText[0])
+					  	{
+			            	$('#flash_alert').html("<span class='ui-icon ui-icon-info' style='float:left; margin-right:.3em;'><\/span>"+resText[1])
+			            	$('#flash_alert').slideDown()
+			            	window.setTimeout(function() {$('#flash_alert').slideUp()}, 3000)
+			              	return false
+			         	}
+						else
+						{
+			        		return true
+			        	}
+					}
+					^			    
+				else
+					# Custom error handler
+					handler
+			end
+				
+		@error_handler_name = code[/function\s*(\w+)/, 1]
+		code
+	end		
+				
+	# Enable inline editing
+    # When a row is selected, all fields are transformed to input types
+	def editable
+		if @options.delete(:edit) && @options.delete(:inline_edit)
+			%Q^
+	        onSelectRow: function(id){ 
+	          if(id && id !== lastsel){ 
+	            jQuery('##{@id}').restoreRow(lastsel);
+	            jQuery('##{@id}').editRow(id, true, #{@options[:inline_edit_handler]}, #{@error_handler_name});
+	            lastsel = id; 
+	          } 
+	        },^
+		else
+			''
+    	end
+	end
+
+
     def gen_columns(columns)
       # Generate columns data
       col_names = "[" # Labels
@@ -428,7 +439,7 @@ module Jqgrid
         elsif couple[0] == :dataInit # :dataInit => %@~{$(element).datepicker({onSelect: getDt(dateText, inst); }})}~
           options << %Q~#{couple[0]}:#{couple[1]},~
         else # :size => 30, :rows => 5, :maxlength => 20, ...
-          if couple[1].instance_of?(Fixnum) || couple[1] == 'true' || couple[1] == 'false' || couple[1] == true || couple[1] == false || couple[1] =~ /function/
+          if couple[1].instance_of?(Fixnum) || couple[1] || !couple[1] || couple[1] || !couple[1] || couple[1] =~ /function/
               options << %Q/#{couple[0]}:#{couple[1]},/
             else
               options << %Q/#{couple[0]}:"#{couple[1]}",/          
