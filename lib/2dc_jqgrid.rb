@@ -280,42 +280,45 @@ module Jqgrid
 
     private
  
+	# When  options[:error_handler] == nil 		then use the null error handler (it does nothing so ignores any errors)
+	# When  options[:error_handler] == :default then use the default error handler and displays the errors.
+	# When  options[:error_handler] == a string then use the string holds the name of the error handler to use.  The code is provided
+	#  									as part of the view.
 	def error_handler
 	   	handler = @options.delete(:error_handler)
-		code = 
-			case handler
-				when nil
-					# Null error handler - just ignore all errors.
-					 %Q^function null_error_handler (r, data, action) 
-						{
-							return true
-						}
-						^
-				when :default
-				    # Construct default error handler code to display the error
-			        %Q^function default_error_handler (r, data, action) 
+		case handler
+			when nil
+				# Null error handler - just ignore all errors.
+				@error_handler_name = 'null_error_handler'
+				 %Q^function null_error_handler (r, data, action) 
 					{
-			       		var resText = JSON.parse (r.responseText)
-			          	if (resText[0])
-					  	{
-			            	$('#flash_alert').html("<span class='ui-icon ui-icon-info' style='float:left; margin-right:.3em;'><\/span>"+resText[1])
-			            	$('#flash_alert').slideDown()
-			            	window.setTimeout(function() {$('#flash_alert').slideUp()}, 3000)
-			              	return false
-			         	}
-						else
-						{
-			        		return true
-			        	}
+						return true
 					}
-					^			    
-				else
-					# Custom error handler
-					handler
-			end
-				
-		@error_handler_name = code[/function\s*(\w+)/, 1]
-		code
+					^
+			when :default
+			    # Construct default error handler code to display the error
+				@error_handler_name = 'default_error_handler'
+		        %Q^function default_error_handler (r, data, action) 
+				{
+		       		var resText = JSON.parse (r.responseText)
+		          	if (resText[0])
+				  	{
+		            	$('#flash_alert').html("<span class='ui-icon ui-icon-info' style='float:left; margin-right:.3em;'><\/span>"+resText[1])
+		            	$('#flash_alert').slideDown()
+		            	window.setTimeout(function() {$('#flash_alert').slideUp()}, 3000)
+		              	return false
+		         	}
+					else
+					{
+		        		return true
+		        	}
+				}
+				^			    
+			else
+				# Custom error handler
+				@error_handler_name = handler
+				''			# no code - provided elsewhere in the view
+		end
 	end		
 				
 	# Enable inline editing
