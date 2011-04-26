@@ -78,7 +78,8 @@ module Jqgrid
 
 
 			:height				=> 500,
-
+			:resizable			=> true,
+			
 			# :width				=> 600,
 			# 		    :viewrecords		=> true,
 
@@ -107,6 +108,7 @@ module Jqgrid
 		inline_edit
 		navigator_options
  		search_options(:search)
+		resizable
 		
 		# Generate columns data
 		gen_columns(columns)
@@ -331,9 +333,13 @@ module Jqgrid
 		delete       = @grid_options.delete(:delete)
 		view         = @grid_options.delete(:view)
 
-		edit_options 	= edit ? {} : @grid_options.delete(:edit_options)
-		add_options 	= add ? {} : @grid_options.delete(:add_options)
-		delete_options 	= delete ? {} : @grid_options.delete(:delete_options)
+		edit_options 	= @grid_options.delete(:edit_options)
+		add_options 	= @grid_options.delete(:add_options)
+		delete_options 	= @grid_options.delete(:delete_options)
+
+		edit_options 	= {} if !edit
+		add_options 	= {} if !add
+		delete_options 	= {} if !delete
 
 	    js = %Q^jQuery("##{@id}").navGrid('##{@id}_pager',
 			{edit: #{edit}, add: #{add}, del: #{delete}, view: #{view}, search: false, refresh: true},
@@ -344,6 +350,26 @@ module Jqgrid
 		^
 
 		@grid_methods << js.gsub(/ERROR_HANDLER_NAME/, "#{@error_handler_name}") 
+	end
+	
+    # Recalculate width of grid based on parent container.
+    # ref: http://www.trirand.com/blog/?page_id=393/feature-request/Resizable%20grid/
+	def resizable
+		return if !@grid_options.delete(:resizable)
+		@grid_methods <<
+		%Q^
+		function _recalc_width(){
+          if (grids = jQuery('"#{@id}".ui-jqgrid-btable:visible')) {
+            grids.each(function(index) {
+              gridId = jQuery(this).attr('id');
+              gridParentWidth = jQuery('#gbox_' + gridId).parent().width();
+              jQuery('#' + gridId).setGridWidth(gridParentWidth);
+            });
+          }
+        };
+
+        jQuery(window).bind('resize', _recalc_width);
+    	^
 	end
 	
 	def gen_columns (columns)
