@@ -191,6 +191,8 @@ module Jqgrid
 			         	}
 						else
 						{
+							// Reload the data incase the db update caused any changes not visible in the local data.
+							jQuery('##{@id}').trigger('reloadGrid')
 			        		return true
 			        	}
 					}^			    
