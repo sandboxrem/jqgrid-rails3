@@ -117,7 +117,7 @@ module Jqgrid
 		
     	# Generate required Javascript & html to create the jqgrid
 		"<script type = 'text/javascript'>
-			var lastsel;
+			var lastsel, lastedit;
 			jQuery(document).ready(function()
 			{
 				jQuery('##{@id}').jqGrid({
@@ -202,21 +202,32 @@ module Jqgrid
 		end
 	end		
 				
-	# Enable inline editing
-    # When a row is selected, all fields are transformed to input types
+	# Enable inline editing with a double click.
 	def inline_edit
 		if @grid_options[:edit_method] == :inline
 			# The code is passed in as a option so must not be converted into a quoted string when
-			# converted to json.
-			@grid_options[:onSelectRow] = Javascript.new(
+			# converted to json.  After the edit is completed the row is selected again.
+			@grid_options[:ondblClickRow] = Javascript.new(
 			%Q^function(id){
-	        	if (id && id !== lastsel)
+	        	if (id && id !== lastedit)
 				{
 	            	jQuery('##{@id}').restoreRow(lastsel)
 	            	jQuery('##{@id}').editRow(id, true, null, #{@error_handler_name})
-	            	lastsel = id
+	            	lastedit = id
 	          	} 
 	        }^)
+	
+			# If we are in the middle of an inline edit and the user selects another row then abandon the edit.
+			@grid_options[:onSelectRow] = Javascript.new(
+			%Q^function(id){
+	        	if (id && id !== lastsel && id != lastedit)
+				{
+	            	jQuery('##{@id}').restoreRow(lastsel)
+	            	lastsel = id
+					lastedit = null
+	          	} 
+	        }^)
+			
 		end
 	end
 
@@ -225,9 +236,8 @@ module Jqgrid
 		url = @grid_options.delete(url)
 		caption = @grid_options.delete(caption)
 		if @grid_options.delete(master_details)
-			@grid_methods <<
-			%Q^
-				onSelectRow: function(ids) { 
+			@grid_options[:onSelectRow] = Javascript.new(
+			%Q^function(ids) { 
 					if (ids == null) 
 					{ 
 						ids = 0; 
@@ -244,7 +254,7 @@ module Jqgrid
 							.setCaption("#{caption} : "+ids)
 							.trigger('reloadGrid'); 
 					} 
-				}^
+				}^)
 		end
 	end
 	
