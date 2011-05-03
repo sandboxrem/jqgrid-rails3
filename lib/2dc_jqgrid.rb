@@ -191,8 +191,6 @@ module Jqgrid
 			         	}
 						else
 						{
-							// Reload the data incase the db update caused any changes not visible in the local data.
-							jQuery('##{@id}').trigger('reloadGrid')
 			        		return true
 			        	}
 					}^			    
@@ -212,9 +210,13 @@ module Jqgrid
 	        	if (id && id !== lastedit)
 				{
 	            	jQuery('##{@id}').restoreRow(lastsel)
-	            	jQuery('##{@id}').editRow(id, true, null, #{@error_handler_name})
-	            	lastedit = id
-	          	} 
+				}
+            	lastedit = id
+            	jQuery('##{@id}').editRow(id, true, null, #{@error_handler_name}, null, null, 
+					function(id, resp) {
+						var response = JSON.parse (resp.responseText)
+						jQuery('##{@id}').setRowData(lastedit, response[2])
+					}) 
 	        }^)
 	
 			# If we are in the middle of an inline edit and the user selects another row then abandon the edit.
