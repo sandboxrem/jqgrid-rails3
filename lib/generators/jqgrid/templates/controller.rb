@@ -29,12 +29,6 @@ class <%= class_name.pluralize %>Controller < ApplicationController
 				GRID_COLUMNS.each {|c| record_data[c] = <%= model_name %>.send(c)}
 	  		when 'del'
 				<%= camel %>.destroy_all(:id => params[:id].split(","))
-	  		when 'sort'
-				<%=plural_name%> = <%= camel %>.all
-				<%=plural_name%>.each do |<%= model_name %>|
-					<%= model_name %>.position = params['ids'].index(<%= model_name %>.id.to_s) + 1 if params['ids'].index(<%= model_name %>.id.to_s) 
-		  			<%= model_name %>.save
-				end
 	  		else
 				error_message = 'unknown action'
 		end
