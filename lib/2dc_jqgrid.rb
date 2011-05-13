@@ -81,7 +81,7 @@ module Jqgrid
 			:resizable			=> true,
 			
 			# :width				=> 600,
-			# 		    :viewrecords		=> true,
+			#:viewrecords		=> true,			# doesn't update correctly when not paging??
 
 		   	:rowNum				=> 10,
 			:rowTotal			=> 2000,
@@ -200,7 +200,11 @@ module Jqgrid
 		end
 	end		
 				
-	# Enable inline editing with a double click.
+	# Enable inline editing with a double click.  After the edit (assuming no errors) the row is reloaded from
+	# the results of the save operation so any changes to the formatting of the saved data or virtual attributes
+	# are made visible.  Note if the edit changes the sorting order or filtered selection then this will not be 
+	# shown - this could be fixed by reloading the grid, but this then looses the row highlight and it is problematic
+	# to re-establish it again as the row may not be visible if the sort order changed or the row is filtered out.
 	def inline_edit
 		if @grid_options[:edit_method] == :inline
 			# The code is passed in as a option so must not be converted into a quoted string when
@@ -473,177 +477,3 @@ module JqgridJson
   end
 end
 
-
-module JqgridFilter
-  def filter_by_conditions(columns)
-    conditions = ""
-    columns.each do |column|
-      conditions << "#{column} LIKE '%#{params[column]}%' AND " unless params[column].nil?
-    end
-    conditions.chomp("AND ")
-  end
-end
-
-
-	
-=begin      
-      # Enable subgrids
-      subgrid = ""
-      subgrid_enabled = "subGrid:false,"
-
-      if options[:subgrid].present?
-        
-        subgrid_enabled = "subGrid:true,"
-        
-        options[:subgrid] = 
-          {
-            :rows_per_page => 10,
-            :sort_column   => 'id',
-            :sort_order    => 'asc',
-            :add           => false,
-            :edit          => false,
-            :delete        => false,
-            :search        => false,
-            :viewrecords   => true,
-            :rowlist       => '[10,25,50,100]',
-            :shrinkToFit   => false
-          }.merge(options[:subgrid])
-
-        # Stringify options values
-        options[:subgrid].inject({}) do |suboptions, (key, value)|
-          suboptions[key] = value.to_s
-          suboptions
-        end
-        
-        subgrid_inline_edit = ""
-        if options[:subgrid][:inline_edit] == true
-          options[:subgrid][:edit] = false
-          subgrid_inline_edit = %Q^
-          onSelectRow: function(id){ 
-            if(id && id!==lastsel){ 
-              jQuery('#'+subgrid_table_id).restoreRow(lastsel);
-              jQuery('#'+subgrid_table_id).editRow(id,true); 
-              lastsel=id; 
-            } 
-          },
-          ^
-        end
-          
-        if options[:subgrid][:direct_selection] && options[:subgrid][:selection_handler].present?
-          subgrid_direct_link = %Q/
-          onSelectRow: function(id){ 
-            if(id){ 
-              #{options[:subgrid][:selection_handler]}(id); 
-            } 
-          },
-          /
-        end     
-        
-        sub_col_names, sub_col_model = gen_columns(options[:subgrid][:columns])
-        
-        subgrid = %Q(
-        subGridRowExpanded: function(subgrid_id, row_id) {
-        		var subgrid_table_id, pager_id;
-        		subgrid_table_id = subgrid_id+"_t";
-        		pager_id = "p_"+subgrid_table_id;
-        		$("#"+subgrid_id).html("<table id='"+subgrid_table_id+"' class='scroll'></table><div id='"+pager_id+"' class='scroll'></div>");
-        		jQuery("#"+subgrid_table_id).jqGrid({
-        			url:"#{options[:subgrid][:url]}?q=2&id="+row_id,
-              editurl:'#{options[:subgrid][:edit_url]}?parent_id='+row_id,                            
-        			datatype: "json",
-        			colNames: #{sub_col_names},
-        			colModel: #{sub_col_model},
-        		   	rowNum:#{options[:subgrid][:rows_per_page]},
-        		   	pager: pager_id,
-        		   	imgpath: '/images/jqgrid',
-        		   	sortname: '#{options[:subgrid][:sort_column]}',
-        		    sortorder: '#{options[:subgrid][:sort_order]}',
-                viewrecords: #{options[:subgrid][:viewrecords]},
-                rowlist: #{options[:subgrid][:rowlist]},
-                shrinkToFit: #{options[:subgrid][:shrinkToFit]},
-                toolbar : [true,"top"], 
-        		    #{subgrid_inline_edit}
-        		    #{subgrid_direct_link}
-        		    height: '100%'
-        		})
-        		.navGrid("#"+pager_id,{edit:#{options[:subgrid][:edit]},add:#{options[:subgrid][:add]},del:#{options[:subgrid][:delete]},search:false})
-        		.navButtonAdd("#"+pager_id,{caption:"Search",title:"Toggle Search",buttonimg:'/images/jqgrid/search.png',
-            	onClickButton:function(){ 
-            		if(jQuery("#t_"+subgrid_table_id).css("display")=="none") {
-            			jQuery("#t_"+subgrid_table_id).css("display","");
-            		} else {
-            			jQuery("#t_"+subgrid_table_id).css("display","none");
-            		}
-            	} 
-            });
-            jQuery("#t_"+subgrid_table_id).height(25).hide().filterGrid(""+subgrid_table_id,{gridModel:true,gridToolbar:true});
-        	},
-        	subGridRowColapsed: function(subgrid_id, row_id) {
-        	},
-        )
-      end
-
-
-
-
-   url:'#{action}?q=1',
-      editurl:'#{options[:edit_url]}',
-      datatype: "json",
-      colNames:#{col_names},
-      colModel:#{col_model},
-      pager: '##{id}_pager',
-      pagerpos:'#{options[:pagerpos]}', 
-      rowNum:#{options[:rows_per_page]},
-      rowList:#{options[:rowlist]},
-      viewrecords:#{options[:viewrecords]},
-      height: #{options[:height]},
-      #{"sortname: '#{options[:sort_column]}'," unless options[:sort_column].blank?}
-      #{"sortorder: '#{options[:sort_order]}'," unless options[:sort_order].blank?}
-      gridview: #{options[:gridview]},
-      scrollrows: true,
-      autowidth: #{options[:autowidth]},
-      loadui: '#{options[:loadui]}',
-      rownumbers: #{options[:rownumbers]},
-      hiddengrid: #{options[:hiddengrid]},
-      hidegrid: #{options[:hidegrid]}, 
-      shrinkToFit: #{options[:shrinkToFit]}, 
-      #{multiselect}
-      #{master_details}
-      #{grid_loaded}
-      #{direct_link}
-      #{editable}
-      #{context_menu}
-      #{subgrid_enabled}
-      #{subgrid}
-      caption: "#{title}"             
-
-    .navGrid('##{id}_pager',
-      {edit:#{edit_button},add:#{options[:add]},del:#{options[:delete]},view:#{options[:view]},search:false,refresh:true},
-      // Edit options
-      {closeOnEscape:true,modal:true,recreateForm:#{options[:recreateForm]},width:#{options[:form_width]},closeAfterEdit:true,afterSubmit:function(r,data){return #{error_handler_name}(r,data,'edit');}},
-      // Add options
-      {closeOnEscape:true,modal:true,recreateForm:#{options[:recreateForm]},width:#{options[:form_width]},closeAfterAdd:true,afterSubmit:function(r,data){return #{error_handler_name}(r,data,'add');}},
-      // Delete options
-      {closeOnEscape:true,modal:true,afterSubmit:function(r,data){return #{error_handler_name}(r,data,'delete');}}
-    )
-    #{search}
-    #{multihandler}
-    #{selection_link}
-    #{filter_toolbar}
-  #{'})' unless options[:omit_ready]};
-</script>
-<div id="flash_alert" style="display:none;padding:0.7em;" class="ui-state-highlight ui-corner-all"></div>
-<table id="#{id}" class="scroll" cellpadding="0" cellspacing="0"></table>
-<div id="#{id}_pager" class="scroll" style="text-align:center;"></div>
-
-
-
-
-
-
-
-
-
-
-
-=end
