@@ -185,4 +185,73 @@ class ActionController::Base
 		
 		return grid_records, total_entries, current_page, rows_per_page
 	end	
+	
+	JSON_ESCAPE_MAP = {	  '\\'	  => '\\\\',
+						  '</'	  => '<\/',
+						  "\r\n"  => '\n',
+						  "\n"	  => '\n',
+						  "\r"	  => '\n',
+						  '"'	  => '\\"' }
+
+	def jqgrid_json (records, grid_columns, current_page, per_page, total)
+		json = %Q^{"page": "#{current_page}","total": #{total/per_page.to_i + 1}, "records": "#{total}"^
+		if total > 0
+			rows = records.map do |record|
+				record.id ||= index(record)
+				couples = record.attributes.symbolize_keys
+				columns = grid_columns.map do |column|
+					value = get_atr_value(record, column, couples)
+					value = escape_json(value) if value && value.kind_of?(String)
+					%Q^"#{value}"^
+				end
+				%Q^{"id": "#{record.id}", "cell": [#{columns.join(',')}]}^
+			end
+			json << %Q^, "rows": [ #{rows.join(',')}]^
+		end
+		json << "}"
+	end
+
+	def escape_json(json)
+		if json
+			json.gsub(/(\\|<\/|\r\n|[\n\r"])/) { JSON_ESCAPE_MAP[$1] }
+		else
+			''
+		end
+	end
+
+	def get_atr_value(elem, atr, couples)
+		if atr.instance_of?(String) && atr.to_s.include?('.')
+			value = get_nested_atr_value(elem, atr.to_s.split('.').reverse) 
+		else
+			value = couples[atr]
+			value = _resolve_value(atr, elem)
+			# value = elem.send(atr.to_sym) if value.blank? && elem.respond_to?(atr) # Required for virtual attributes
+		end
+		value
+	end
+
+	def _resolve_value(value, record)
+		case value
+			when Symbol
+				if record.respond_to?(value)
+					record.send(value) 
+				else 
+					value.to_s
+				end
+			when Proc
+				value.call(record)
+			else
+				value
+		end
+	end
+
+	def get_nested_atr_value(elem, hierarchy)
+		return nil if hierarchy.size == 0
+		atr = hierarchy.pop
+		raise ArgumentError, "#{atr} doesn't exist on #{elem.inspect}" unless elem.respond_to?(atr)
+		nested_elem = elem.send(atr)
+		return "" if nested_elem.nil?
+		value = get_nested_atr_value(nested_elem, hierarchy)
+		value.nil? ? nested_elem : value
+	end
 end

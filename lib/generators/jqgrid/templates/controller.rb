@@ -22,7 +22,7 @@ class <%= class_name.pluralize %>Controller < ApplicationController
 		grid_records, total_entries, current_page, rows_per_page = filter_on_params(<%=class_name%>, GRID_COLUMNS)
 		
 		respond_with(grid_records) do |format|
-			format.json { render :json => grid_records.to_jqgrid_json(GRID_COLUMNS, current_page, rows_per_page, total_entries)}  
+			format.json { render :json => jqgrid_json(grid_records, GRID_COLUMNS, current_page, rows_per_page, total_entries)}  
 		end
 	end
 end

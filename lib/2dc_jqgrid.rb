@@ -81,11 +81,10 @@ module Jqgrid
 			:resizable			=> true,
 			
 			# :width				=> 600,
-			#:viewrecords		=> true,			# doesn't update correctly when not paging??
-
+			:viewrecords		=> true,			# doesn't update correctly when not paging??
+			:recordtext			=> '{2} records',		# 'Posts {0} - {1} of {2}',
 		   	:rowNum				=> 10,
 			:rowTotal			=> 2000,
-
 
 
 			:rowlist             => [10,25,50,100],				# not the jqgrid default ???
@@ -400,80 +399,3 @@ module Jqgrid
 		@grid_options[:colModel] = Javascript.new("[#{cols.join(', ')}]")		
 	end
 end
-
-
-module JqgridJson
-  JSON_ESCAPE_MAP = {
-    '\\'    => '\\\\',
-    '</'    => '<\/',
-    "\r\n"  => '\n',
-    "\n"    => '\n',
-    "\r"    => '\n',
-    '"'     => '\\"' }
-  
-  def to_jqgrid_json(attributes, current_page, per_page, total)
-    json = %Q({"page":"#{current_page}","total":#{total/per_page.to_i+1},"records":"#{total}")
-    if total > 0
-      json << %Q(,"rows":[)
-      each do |elem|
-        elem.id ||= index(elem)
-        json << %Q({"id":"#{elem.id}","cell":[)
-        couples = elem.attributes.symbolize_keys
-        attributes.each do |atr|
-          value = get_atr_value(elem, atr, couples)
-          value = escape_json(value) if value and value.is_a? String
-          json << %Q("#{value}",)
-         end
-        json.chop! << "]},"
-      end
-      json.chop! << "]}"
-    else
-      json << "}"
-    end
-  end
-  
-  private
-    
-  def escape_json(json)
-    if json
-      json.gsub(/(\\|<\/|\r\n|[\n\r"])/) { JSON_ESCAPE_MAP[$1] }
-    else
-      ''
-    end
-  end
-
-  def get_atr_value(elem, atr, couples)
-    if atr.instance_of?(String) && atr.to_s.include?('.')
-      value = get_nested_atr_value(elem, atr.to_s.split('.').reverse) 
-    else
-      value = couples[atr]
-      value = _resolve_value(atr, elem)
-     # value = elem.send(atr.to_sym) if value.blank? && elem.respond_to?(atr) # Required for virtual attributes
-    end
-    value
-  end
-  def _resolve_value(value, record)
-    case value
-    when Symbol
-      if record.respond_to?(value)
-        record.send(value) 
-      else 
-        value.to_s
-      end
-    when Proc
-      value.call(record)
-    else
-      value
-    end
-  end
-  def get_nested_atr_value(elem, hierarchy)
-    return nil if hierarchy.size == 0
-    atr = hierarchy.pop
-    raise ArgumentError, "#{atr} doesn't exist on #{elem.inspect}" unless elem.respond_to?(atr)
-    nested_elem = elem.send(atr)
-    return "" if nested_elem.nil?
-    value = get_nested_atr_value(nested_elem, hierarchy)
-    value.nil? ? nested_elem : value
-  end
-end
-
