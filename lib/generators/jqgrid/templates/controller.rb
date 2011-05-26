@@ -11,7 +11,7 @@ class <%= class_name.pluralize %>Controller < ApplicationController
 	#	end
 	# end
 
-	GRID_COLUMNS = [<%= columns.map {|x| ":#{x}"}.join(', ') %>]
+	GRID_COLUMNS = %w{<%= columns.map {|x| "#{x}"}.join(' ') %>}
 	
 	def post_data
 		grid_add_edit_del(<%=class_name%>, GRID_COLUMNS)

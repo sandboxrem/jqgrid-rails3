@@ -1,9 +1,10 @@
 class ActionController::Base
 
-	def grid_add_edit_del (model_class, grid_colunms)
+	def grid_add_edit_del (model_class, grid_columns)
 		error_message = ""
 		model_params = {}
-		grid_colunms.each {|c| model_params[c] = params[c] if params[c]}
+		grid_columns = grid_columns.map(:to_sym)
+		grid_columns.each {|c| model_params[c] = params[c] if params[c]}
 	 	case params[:oper]
 			when 'add'
 				if params["id"] == "_empty"
@@ -13,7 +14,7 @@ class ActionController::Base
 				record = model_class.find(params[:id])
 				record.update_attributes(model_params)
 				record_data = {}
-				grid_colunms.each {|c| record_data[c] = record.send(c)}
+				grid_columns.each {|c| record_data[c] = record.send(c)}
 	  		when 'del'
 				model_class.destroy_all(:id => params[:id].split(","))
 	  		else
