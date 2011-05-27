@@ -53,50 +53,48 @@ class ActionController::Base
 				case param 
 					when /^~(.*)/, /^(\^.*)/, /(.*\$)$/		# matches against user regexp, starts with, ends with
 						re = Regexp.new($1, Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|p| p.send(col).to_s =~ re}
+						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_s =~ re}
 
 					when /^!~(.*)/								# does not match against user regexp
 						re = Regexp.new($1, Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|p| p.send(col).to_s !~ re}
+						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_s !~ re}
 						
 					when /^=(.*)/								# exact match
 						re = Regexp.new("^#{$1}$", Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|p| p.send(col).to_s =~ re}
+						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_s =~ re}
 
 					when /^!=(.*)/								# exact non match
 						re = Regexp.new("^#{$1}$", Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|p| p.send(col).to_s !~ re}
+						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_s !~ re}
 
 					when /^>=(.*)/								# >=
 						value = $1.to_f
-						grid_records = grid_records.find_all {|p| p.send(col).to_f >= value}
+						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_f >= value}
 
 					when /^>(.*)/								# >
 						value = $1.to_f
-						grid_records = grid_records.find_all {|p| p.send(col).to_f > value}
+						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_f > value}
 
 					when /^<=(.*)/								# <=
 						value = $1.to_f
-						grid_records = grid_records.find_all {|p| p.send(col).to_f <= value}
+						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_f <= value}
 
 					when /^<(.*)/								# <
 						value = $1.to_f
-						grid_records = grid_records.find_all {|p| p.send(col).to_f < value}
+						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_f < value}
 
 					when /(.+)\.\.(.+)/	
 						min = $1.to_f
 						max = $2.to_f
-						grid_records = grid_records.find_all do |p|
-							value = p.send(col).to_f
+						grid_records = grid_records.find_all do |r|
+							value = get_column_value(r, col).to_f
 							value >= min && value < max
 						end
 					else
 						# Virtual attribute with no match so look for contains
 						re = Regexp.new(param, Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|p| p.send(col) =~ re}
+						grid_records = grid_records.find_all {|r| get_column_value(r, col) =~ re}
 				end
-				puts "done searching for #{col} with #{param} gave #{grid_records.length}"
-
 			end
 			
 			# Sort the results (this will be done on :id if non provided so as to stay consistent with the AR path)
@@ -110,7 +108,7 @@ class ActionController::Base
 			else
 				# Virtual attribute.  Use sort_by to cache the virtual attributes before sorting in case
 				# the virtual attributes have a high calculation cost.
-				grid_records = grid_records.sort_by(&sort_index.to_sym)
+				grid_records = grid_records.sort_by {|r| get_column_value(r, sort_index)}
 				grid_records.reverse! if sort_direction == 'desc'
 			end
 		else

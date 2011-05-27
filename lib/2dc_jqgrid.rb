@@ -39,7 +39,7 @@ module Jqgrid
 	end
 	
 	# http://www.trirand.com/jqgridwiki/doku.php?id=wiki:options 
-	def jqgrid(caption, id, url, columns = [], options = {})
+	def jqgrid (caption, id, url, columns = [], options = {})
  		@id = id
 
      	default_options = 
