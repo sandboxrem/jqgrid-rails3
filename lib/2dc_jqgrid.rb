@@ -153,7 +153,7 @@ module Jqgrid
 		if options
 			@grid_methods << 
 			%Q^jQuery("##{@id}").navButtonAdd("##{@id}_pager", {caption: "", title: $.jgrid.nav.searchtitle, buttonicon :'ui-icon-search', onClickButton:function(){ jQuery("##{@id}")[0].toggleToolbar() } })^
-		      		@grid_methods << %Q^jQuery("##{@id}").filterToolbar({#{js_properties(options)}}); jQuery("##{@id}")[0].toggleToolbar()^
+		      		@grid_methods << %Q^jQuery("##{@id}").filterToolbar({#{js_properties(options).join(', ')}}); jQuery("##{@id}")[0].toggleToolbar()^
 		end
     end
 
