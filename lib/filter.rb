@@ -219,30 +219,4 @@ class ActionController::Base
 			next_obj
 		end
 	end
-
-# 	def _resolve_value(value, record)
-# 		case value
-# 			when Symbol
-# 				if record.respond_to?(value)
-# 					record.send(value) 
-# 				else 
-# 					value.to_s
-# 				end
-# 			when Proc
-# 				value.call(record)
-# 			else
-# 				value
-# 		end
-# 	end
-# 
-# 	def get_nested_atr_value(elem, hierarchy)
-# puts "XXXXXXXXXXXXXXXXX"
-# 		return nil if hierarchy.size == 0
-# 		atr = hierarchy.pop
-# 		raise ArgumentError, "#{atr} doesn't exist on #{elem.inspect}" unless elem.respond_to?(atr)
-# 		nested_elem = elem.send(atr)
-# 		return "" if nested_elem.nil?
-# 		value = get_nested_atr_value(nested_elem, hierarchy)
-# 		value.nil? ? nested_elem : value
-# 	end
 end

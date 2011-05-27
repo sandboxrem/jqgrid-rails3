@@ -61,8 +61,7 @@ module Jqgrid
 			# Can be :inline to allow inline editing in the table or :form to pop up a form to do the editing in.
 			# If it is nil or false then no editing can be done.
 			:edit_method		 => :inline,
-
-
+			
 			# http://www.trirand.com/jqgridwiki/doku.php?id=wiki:navigator
 			:add                 => false,
 			:delete              => false,
@@ -73,8 +72,7 @@ module Jqgrid
 			:add_options 		=> {:closeOnEscape => true, :modal => true, :recreateForm => true, :width => 300, :closeAfterAdd => true,
 										:afterSubmit => Javascript.new("function(r,data) {return ERROR_HANDLER_NAME(r,data,'add')}")},
 
-			:delete_options 	=> {:closeOnEscape => true, :modal => true,
-										:afterSubmit => Javascript.new("function(r,data) {return ERROR_HANDLER_NAME(r,data,'delete')}")},
+			:delete_options 	=> {:closeOnEscape => true, :modal => true},
 
 
 			:height				=> 500,

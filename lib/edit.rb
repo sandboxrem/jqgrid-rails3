@@ -19,12 +19,12 @@ class ActionController::Base
 	  		else
 				error_message = 'unknown action'
 		end
-	  
- 		if record && record.errors.empty?
+
+ 		if !record || record.errors.empty?
 			render :json => [false, error_message, record_data] 
 		else
 			record.errors.entries.each do |error|
-				message << "<strong>#{model_class.human_attribute_name(error[0])}</strong> : #{error[1]}<br/>"
+				error_message << "<strong>#{model_class.human_attribute_name(error[0])}</strong> : #{error[1]}<br/>"
 			end
 			render :json =>[true, error_message, record_data]
 		end
