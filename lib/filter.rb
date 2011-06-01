@@ -32,13 +32,14 @@ class ActionController::Base
 		end
 	end
 	
-	def special_filter (model_class, regular, special, virtual, sort_index, sort_direction, current_page, rows_per_page)
-		# Cache results between requests to speed up pagination and changes to sort order.
-		##### Don't know how to do just yet - data is too large for flash so disable storing in flash for now.
-		##### the fact that it doesn't work just costs performance at present...
-		cache_key = [model_class, regular, special, virtual, sort_index]
-		if !flash[:grid_records_cache] || flash[:grid_records_cache_attribs] != cache_key
-			# Cached records, if present are not valid
+	def special_filter (model_class, grid_columns, regular, special, sort_index, sort_direction, current_page, rows_per_page)
+		# Cache results between requests to speed up pagination and changes to sort order.  The cache will expire so is only
+		# for short term use, however if any of the underlying tables are updated then the cache will *not* be invalidated
+		#  (will be fixed in the future).
+		cache_key = [model_class.to_s, regular, special, sort_index].inspect
+
+		grid_records = Rails.cache.fetch(cache_key, :expires_in => 1.minutes) do
+			# Cache miss so do the work...
 			if regular.empty?
 				# No regular search parameters so just grab everything.
 				grid_records = model_class.all
@@ -47,84 +48,71 @@ class ActionController::Base
 				sql_query, sql_query_data = filter_by_conditions(regular)
 				grid_records = model_class.where(sql_query, sql_query_data)
 			end
+
+			# Convert all column data in each record into a simple hash, keyed with the column's name and
+			# expanded so any virtual attributes or attributes with a path are resolved (so we only do it once).
+			# This is for efficiency reasons.
+			grid_records = grid_records.map do |record|
+				grid_columns.reduce({}) {|hsh, col| hsh[col] = get_column_value(record, col); hsh}
+			end
 	
 			# Successively filter based on each condition
-			special.merge(virtual).each do |col, param|
+			special.each do |col, param|
 				case param 
 					when /^~(.*)/, /^(\^.*)/, /(.*\$)$/		# matches against user regexp, starts with, ends with
 						re = Regexp.new($1, Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_s =~ re}
+						grid_records = grid_records.find_all {|r| r[col].to_s =~ re}
 
 					when /^!~(.*)/								# does not match against user regexp
 						re = Regexp.new($1, Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_s !~ re}
+						grid_records = grid_records.find_all {|r| r[col].to_s !~ re}
 						
 					when /^=(.*)/								# exact match
 						re = Regexp.new("^#{$1}$", Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_s =~ re}
+						grid_records = grid_records.find_all {|r| r[col].to_s =~ re}
 
 					when /^!=(.*)/								# exact non match
 						re = Regexp.new("^#{$1}$", Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_s !~ re}
+						grid_records = grid_records.find_all {|r| r[col].to_s !~ re}
 
 					when /^>=(.*)/								# >=
 						value = $1.to_f
-						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_f >= value}
+						grid_records = grid_records.find_all {|r| r[col].to_f >= value}
 
 					when /^>(.*)/								# >
 						value = $1.to_f
-						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_f > value}
+						grid_records = grid_records.find_all {|r| r[col].to_f > value}
 
 					when /^<=(.*)/								# <=
 						value = $1.to_f
-						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_f <= value}
+						grid_records = grid_records.find_all {|r| r[col].to_f <= value}
 
 					when /^<(.*)/								# <
 						value = $1.to_f
-						grid_records = grid_records.find_all {|r| get_column_value(r, col).to_f < value}
+						grid_records = grid_records.find_all {|r| r[col].to_f < value}
 
 					when /(.+)\.\.(.+)/	
 						min = $1.to_f
 						max = $2.to_f
 						grid_records = grid_records.find_all do |r|
-							value = get_column_value(r, col).to_f
+							value = r[col].to_f
 							value >= min && value < max
 						end
 					else
-						# Virtual attribute with no match so look for contains
+						# Attribute with no match so look for contains
 						re = Regexp.new(param, Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|r| get_column_value(r, col) =~ re}
+						grid_records = grid_records.find_all {|r| r[col] =~ re}
 				end
 			end
 			
 			# Sort the results (this will be done on :id if non provided so as to stay consistent with the AR path)
-			if model_class.columns_hash[sort_index.to_s]
-				# Attribute.
-				if sort_direction == 'asc'
-					grid_records.sort! {|a, b| a.send(sort_index) <=> b.send(sort_index)}
-				else
-					grid_records.sort! {|a, b| b.send(sort_index) <=> a.send(sort_index)}
-				end
-			else
-				# Virtual attribute.  Use sort_by to cache the virtual attributes before sorting in case
-				# the virtual attributes have a high calculation cost.
-				grid_records = grid_records.sort_by {|r| get_column_value(r, sort_index)}
-				grid_records.reverse! if sort_direction == 'desc'
-			end
-		else
-			grid_records = flash[:grid_records_cache]
-			# Check if the sorting direction has changed.
-			if sort_direction != flash[:grid_records_cache_sort_direction]
-				grid_records.reverse!
-			end
+			grid_records.sort! {|a, b| a[sort_index] <=> b[sort_index]} if sort_index != :id
+			grid_records
 		end
 
-		# Keep the results for the next (and only) the next request.
-		# flash[:grid_records_cache_attribs] = cache_key
-		# flash[:grid_records_cache] = grid_records					##### to big to store in flash!!!!
-		# flash[:grid_records_cache_sort_direction] = sort_direction
+		grid_records = grid_records.reverse if sort_direction != 'asc'
 
-		# Get the range of records
+		# Get the range of records to show.
 		if grid_records.length > rows_per_page
 			start = current_page * rows_per_page
 			start = grid_records.length - rows_per_page if start + rows_per_page > grid_records.length 
@@ -135,7 +123,7 @@ class ActionController::Base
 		return grid_records[start, rows_per_page], grid_records.length
 	end
 	
-	def filter_on_params (model_class, grid_colunms)
+	def filter_on_params (model_class, grid_columns)
 		ar_options = {}
 		current_page = params[:page] ? params[:page].to_i : 1
 		rows_per_page = params[:rows] ? params[:rows].to_i : 10
@@ -148,8 +136,7 @@ class ActionController::Base
 		# Analyse the input params to see if any have the special match conditions or are virtual attributes.
 		regular_attribute_params = {}
 		special_attribute_params = {}
-		virtual_attribute_params = {}
-		grid_colunms.each do |c|
+		grid_columns.each do |c|
 			param = params[c]
 			if param
 				if model_class.columns_hash[c.to_s]
@@ -159,16 +146,15 @@ class ActionController::Base
 						regular_attribute_params[c] = param
 					end
 				else
-					virtual_attribute_params[c] = param
+					special_attribute_params[c] = param
 				end
 			end
 		end
 		
 		sort_on_virtual_attribute = !model_class.columns_hash[sort_index.to_s] ? sort_index : false
 
-		if !sort_on_virtual_attribute && special_attribute_params.empty? && virtual_attribute_params.empty?
+		if !sort_on_virtual_attribute && special_attribute_params.empty?
 			# Get rid of any caching.
-			#####  (for flash this will happen automatically) but needs to be done manually 
 			ar_options[:conditions] = filter_by_conditions(regular_attribute_params) if params[:_search] == "true"
 			ar_options[:page] = current_page
 			ar_options[:per_page] = rows_per_page
@@ -176,7 +162,7 @@ class ActionController::Base
 			grid_records = model_class.paginate(ar_options)
 			total_entries = grid_records.total_entries
 		else
-			grid_records, total_entries = special_filter(model_class, regular_attribute_params, special_attribute_params, virtual_attribute_params, 
+			grid_records, total_entries = special_filter(model_class, grid_columns, regular_attribute_params, special_attribute_params, 
 															sort_index, sort_dir,
 															current_page, rows_per_page)
 		end
@@ -191,17 +177,18 @@ class ActionController::Base
 						  "\r"	  => '\n',
 						  '"'	  => '\\"' }
 
+	# records may be an array of active records or an array of hashes (one entry per column)
 	def jqgrid_json (records, grid_columns, current_page, per_page, total)
 		json = %Q^{"page": "#{current_page}","total": #{total/per_page.to_i + 1}, "records": "#{total}"^
 		if total > 0
 			rows = records.map do |record|
-				record.id ||= index(record)
+				record[:id] ||= records.index(record)
 				columns = grid_columns.map do |column|
-					value = get_column_value(record, column)
+					value = record[column] || get_column_value(record, column)
 					value = escape_json(value) if value && value.kind_of?(String)
 					%Q^"#{value}"^
 				end
-				%Q^{"id": "#{record.id}", "cell": [#{columns.join(',')}]}^
+				%Q^{"id": "#{record[:id]}", "cell": [#{columns.join(',')}]}^
 			end
 			json << %Q^, "rows": [ #{rows.join(',')}]^
 		end
