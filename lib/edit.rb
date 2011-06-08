@@ -1,5 +1,5 @@
-class ActionController::Base
 
+module JqgridEdit
 	def grid_add_edit_del (model_class, grid_columns)
 		error_message = ""
 		model_params = {}	
@@ -30,4 +30,8 @@ class ActionController::Base
 		end
 	end
 
+end
+
+class ActionController::Base
+	include JqgridEdit
 end

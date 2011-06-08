@@ -1,15 +1,14 @@
-class Javascript 
-	def initialize (code)
-		@code = code
-	end
-	
-	def to_json
-		@code
-	end
-end
+module JqgridView
 
+	class Javascript 
+		def initialize (code)
+			@code = code
+		end
 
-module Jqgrid
+		def to_json
+			@code
+		end
+	end
 
   	def jqgrid_stylesheets(theme="default")
       stylesheet_link_tag "jqgrid/themes/#{theme}/jquery-ui-1.8.custom.css", 
@@ -396,4 +395,8 @@ module Jqgrid
 	 	cols = columns.map {|c| "{" + js_properties(c).join(", ") + "}"}
 		@grid_options[:colModel] = Javascript.new("[#{cols.join(', ')}]")		
 	end
+end
+
+class ActionView::Base
+	include JqgridView
 end

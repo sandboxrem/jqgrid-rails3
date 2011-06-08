@@ -1,5 +1,3 @@
-require '2dc_jqgrid'
+require 'view'
 require 'filter'
 require 'edit'
-
-ActionView::Base.send :include, Jqgrid

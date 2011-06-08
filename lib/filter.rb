@@ -1,5 +1,5 @@
-class ActionController::Base
-
+module JqgridFilter
+	
 	# Convert the given columns and their values into SQL search terms while
 	# protecting agains SQL injection.
 	def filter_by_conditions (filter_columns)
@@ -32,6 +32,29 @@ class ActionController::Base
 		end
 	end
 	
+	# Convert the str to the same type as the column so we can use comparison operators.
+	# Use the value from grid_records to guess the type as any virtual attributes or attribute
+	# paths will have been resolved.
+	def str_to_column_type (grid_records, str, col)
+		begin
+			value = case grid_records[0][col]
+						when String		then str
+						when Fixnum		then str.to_i
+						when Float		then str.to_f
+						when Date		then Date.strptime(str, Date::DATE_FORMATS[:default] || Date::DATE_FORMATS[:number])
+						when Time		then Time.strptime(str, Time::DATE_FORMATS[:default] || Time::DATE_FORMATS[:number])
+						when BigDecimal then str.to_d
+						else
+							raise "need to add type conversion here for #{grid_records[0][col].class}"
+					end	
+		rescue ArgumentError
+			puts "ARGUMENT ERROR - str = #{str} for #{grid_records[0][col].class}"
+			# The date or time conversion may have been passed an incomplete or wrong data or time to convert so return nil
+			# so the filtering can be skipped until we get a good value.
+			nil
+		end	
+	end
+	
 	def special_filter (model_class, grid_columns, regular, special, sort_index, sort_direction, current_page, rows_per_page)
 		# Cache results between requests to speed up pagination and changes to sort order.  The cache will expire so is only
 		# for short term use, however if any of the underlying tables are updated then the cache will *not* be invalidated
@@ -39,7 +62,7 @@ class ActionController::Base
 		cache_key = [model_class.to_s, regular, special, sort_index].inspect
 
 		grid_records = Rails.cache.fetch(cache_key, :expires_in => 1.minutes) do
-			# Cache miss so do the work...
+			# Cache miss, so do the work...
 			if regular.empty?
 				# No regular search parameters so just grab everything.
 				grid_records = model_class.all
@@ -67,41 +90,43 @@ class ActionController::Base
 						re = Regexp.new($1, Regexp::IGNORECASE)
 						grid_records = grid_records.find_all {|r| r[col].to_s !~ re}
 						
-					when /^=(.*)/								# exact match
+					when /^=(.*)/								# exact match (use re so case insensitive)
 						re = Regexp.new("^#{$1}$", Regexp::IGNORECASE)
 						grid_records = grid_records.find_all {|r| r[col].to_s =~ re}
 
-					when /^!=(.*)/								# exact non match
+					when /^!=(.*)/								# exact non match (use re so case insensitive)
 						re = Regexp.new("^#{$1}$", Regexp::IGNORECASE)
 						grid_records = grid_records.find_all {|r| r[col].to_s !~ re}
 
 					when /^>=(.*)/								# >=
-						value = $1.to_f
-						grid_records = grid_records.find_all {|r| r[col].to_f >= value}
+						value = str_to_column_type(grid_records, $1, col)
+						grid_records = grid_records.find_all {|r| r[col] >= value} if value
 
 					when /^>(.*)/								# >
-						value = $1.to_f
-						grid_records = grid_records.find_all {|r| r[col].to_f > value}
+						value = str_to_column_type(grid_records, $1, col)
+						grid_records = grid_records.find_all {|r| r[col] > value} if value
 
 					when /^<=(.*)/								# <=
-						value = $1.to_f
-						grid_records = grid_records.find_all {|r| r[col].to_f <= value}
+						value = str_to_column_type(grid_records, $1, col)
+						grid_records = grid_records.find_all {|r| r[col] <= value} if value
 
 					when /^<(.*)/								# <
-						value = $1.to_f
-						grid_records = grid_records.find_all {|r| r[col].to_f < value}
+						value = str_to_column_type(grid_records, $1, col)
+						grid_records = grid_records.find_all {|r| r[col] < value} if value
 
 					when /(.+)\.\.(.+)/	
-						min = $1.to_f
-						max = $2.to_f
-						grid_records = grid_records.find_all do |r|
-							value = r[col].to_f
-							value >= min && value < max
+						min = str_to_column_type(grid_records, $1, col)
+						max = str_to_column_type(grid_records, $1, col)
+						if min && max
+							grid_records = grid_records.find_all do |r|
+								value = r[col]
+								value >= min && value < max
+							end
 						end
 					else
-						# Attribute with no match so look for contains
+						# Attribute with no match criteria so look for contains
 						re = Regexp.new(param, Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|r| r[col] =~ re}
+						grid_records = grid_records.find_all {|r| r[col].to_s =~ re}
 				end
 			end
 			
@@ -206,4 +231,8 @@ class ActionController::Base
 			next_obj
 		end
 	end
+end
+
+class ActionController::Base
+	include JqgridFilter
 end
