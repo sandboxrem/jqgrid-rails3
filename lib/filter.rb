@@ -1,4 +1,6 @@
 module JqgridFilter
+
+	private
 	
 	# Convert the given columns and their values into SQL search terms while
 	# protecting agains SQL injection.
@@ -54,7 +56,76 @@ module JqgridFilter
 			nil
 		end	
 	end
+
+	# Get all the records or a subset from the database.
+	def get_records (model_class, conditions)
+		if conditions.empty?
+			# No regular search parameters so just grab everything.
+			model_class.all
+		else
+			# Query AR to get the super set of what we want.
+			sql_query, sql_query_data = filter_by_conditions(conditions)
+			model_class.where(sql_query, sql_query_data)
+		end
+	end
+
+	# Convert all column data in each record into a simple hash, keyed with the column's name and
+	# expanded so any virtual attributes or attributes with a path are resolved (so we only do it once).
+	def record_to_hash (record, grid_columns)
+		grid_columns.reduce({}) {|hsh, col| hsh[col] = get_column_value(record, col); hsh}
+	end
 	
+	# Return the grid records that match the given param for the given col.
+	def filter_by_param (grid_records, col, param)
+		case param 
+			when /^~(.*)/, /^(\^.*)/, /(.*\$)$/		# matches against user regexp, starts with, ends with
+				re = Regexp.new($1, Regexp::IGNORECASE)
+				grid_records.find_all {|r| r[col].to_s =~ re}
+
+			when /^!~(.*)/								# does not match against user regexp
+				re = Regexp.new($1, Regexp::IGNORECASE)
+				grid_records.find_all {|r| r[col].to_s !~ re}
+				
+			when /^=(.*)/								# exact match (use re so case insensitive)
+				re = Regexp.new("^#{$1}$", Regexp::IGNORECASE)
+				grid_records.find_all {|r| r[col].to_s =~ re}
+
+			when /^!=(.*)/								# exact non match (use re so case insensitive)
+				re = Regexp.new("^#{$1}$", Regexp::IGNORECASE)
+				grid_records.find_all {|r| r[col].to_s !~ re}
+
+			when /^>=(.*)/								# >=
+				value = str_to_column_type(grid_records, $1, col)
+				grid_records.find_all {|r| r[col] >= value} if value
+
+			when /^>(.*)/								# >
+				value = str_to_column_type(grid_records, $1, col)
+				grid_records.find_all {|r| r[col] > value} if value
+
+			when /^<=(.*)/								# <=
+				value = str_to_column_type(grid_records, $1, col)
+				grid_records.find_all {|r| r[col] <= value} if value
+
+			when /^<(.*)/								# <
+				value = str_to_column_type(grid_records, $1, col)
+				grid_records.find_all {|r| r[col] < value} if value
+
+			when /(.+)\.\.(.+)/	
+				min = str_to_column_type(grid_records, $1, col)
+				max = str_to_column_type(grid_records, $1, col)
+				if min && max
+					grid_records.find_all do |r|
+						value = r[col]
+						value >= min && value < max
+					end
+				end
+			else
+				# Attribute with no match criteria so look for contains
+				re = Regexp.new(param, Regexp::IGNORECASE)
+				grid_records.find_all {|r| r[col].to_s =~ re}
+		end
+	end
+
 	def special_filter (model_class, grid_columns, regular, special, sort_index, sort_direction, current_page, rows_per_page)
 		# Cache results between requests to speed up pagination and changes to sort order.  The cache will expire so is only
 		# for short term use, however if any of the underlying tables are updated then the cache will *not* be invalidated
@@ -63,72 +134,13 @@ module JqgridFilter
 
 		grid_records = Rails.cache.fetch(cache_key, :expires_in => 1.minutes) do
 			# Cache miss, so do the work...
-			if regular.empty?
-				# No regular search parameters so just grab everything.
-				grid_records = model_class.all
-			else
-				# Query AR to get the super set of what we want.
-				sql_query, sql_query_data = filter_by_conditions(regular)
-				grid_records = model_class.where(sql_query, sql_query_data)
-			end
+			grid_records = get_records(model_class, regular)
 
-			# Convert all column data in each record into a simple hash, keyed with the column's name and
-			# expanded so any virtual attributes or attributes with a path are resolved (so we only do it once).
 			# This is for efficiency reasons.
-			grid_records = grid_records.map do |record|
-				grid_columns.reduce({}) {|hsh, col| hsh[col] = get_column_value(record, col); hsh}
-			end
+			grid_records = grid_records.map {|record| record_to_hash(record, grid_columns)}
 	
 			# Successively filter based on each condition
-			special.each do |col, param|
-				case param 
-					when /^~(.*)/, /^(\^.*)/, /(.*\$)$/		# matches against user regexp, starts with, ends with
-						re = Regexp.new($1, Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|r| r[col].to_s =~ re}
-
-					when /^!~(.*)/								# does not match against user regexp
-						re = Regexp.new($1, Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|r| r[col].to_s !~ re}
-						
-					when /^=(.*)/								# exact match (use re so case insensitive)
-						re = Regexp.new("^#{$1}$", Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|r| r[col].to_s =~ re}
-
-					when /^!=(.*)/								# exact non match (use re so case insensitive)
-						re = Regexp.new("^#{$1}$", Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|r| r[col].to_s !~ re}
-
-					when /^>=(.*)/								# >=
-						value = str_to_column_type(grid_records, $1, col)
-						grid_records = grid_records.find_all {|r| r[col] >= value} if value
-
-					when /^>(.*)/								# >
-						value = str_to_column_type(grid_records, $1, col)
-						grid_records = grid_records.find_all {|r| r[col] > value} if value
-
-					when /^<=(.*)/								# <=
-						value = str_to_column_type(grid_records, $1, col)
-						grid_records = grid_records.find_all {|r| r[col] <= value} if value
-
-					when /^<(.*)/								# <
-						value = str_to_column_type(grid_records, $1, col)
-						grid_records = grid_records.find_all {|r| r[col] < value} if value
-
-					when /(.+)\.\.(.+)/	
-						min = str_to_column_type(grid_records, $1, col)
-						max = str_to_column_type(grid_records, $1, col)
-						if min && max
-							grid_records = grid_records.find_all do |r|
-								value = r[col]
-								value >= min && value < max
-							end
-						end
-					else
-						# Attribute with no match criteria so look for contains
-						re = Regexp.new(param, Regexp::IGNORECASE)
-						grid_records = grid_records.find_all {|r| r[col].to_s =~ re}
-				end
-			end
+			special.each {|col, param| grid_records = filter_by_param(grid_records, col, param)}
 			
 			# Sort the results (this will be done on :id if non provided so as to stay consistent with the AR path)
 			grid_records.sort! {|a, b| a[sort_index] <=> b[sort_index]} if sort_index != :id
