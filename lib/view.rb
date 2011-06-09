@@ -1,5 +1,7 @@
 module JqgridView
 
+	private
+	
 	class Javascript 
 		def initialize (code)
 			@code = code

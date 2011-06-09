@@ -1,5 +1,7 @@
 
 module JqgridEdit
+	private
+	
 	def grid_add_edit_del (model_class, grid_columns)
 		error_message = ""
 		model_params = {}	
@@ -29,7 +31,6 @@ module JqgridEdit
 			render :json =>[true, error_message, record_data]
 		end
 	end
-
 end
 
 class ActionController::Base
