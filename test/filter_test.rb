@@ -6,8 +6,11 @@ class TestController < ActionController::Base
 	public	:jqgrid_json
 	public 	:filter_by_conditions
 	public 	:special_match_condition?
+	public  :str_to_column_type
+	public  :record_to_hash
 end
 
+# This acts as a proxy for ActiveRecord in that the 'attributes' can be accessed as methods or via []. 
 TestRecord = Struct.new(:a, :b, :c, :id) do
 	def va
 		a.upcase
@@ -141,4 +144,52 @@ class JqgridFilterTest < ActiveSupport::TestCase
 
 		}.each {|param, result| assert_equal(result, @tc.special_match_condition?(param), "For test param: '#{param}'")}
 	end
+	
+	
+	# ---- str_to_column_type ----
+	
+	test "str to column type conversion for string column type" do
+		records = [TestRecord.new("aa")]
+		assert_equal("hello", @tc.str_to_column_type(records, 'hello', 'a'))
+	end
+
+	test "str to column type conversion for fixnum column type" do
+		records = [TestRecord.new(42)]
+		assert_equal(1234, @tc.str_to_column_type(records, '1234', 'a'))
+	end
+
+	test "str to column type conversion for float column type" do
+		records = [TestRecord.new(42.0)]
+		assert_equal(3.412, @tc.str_to_column_type(records, '3.412', 'a'))
+	end
+
+	test "str to column type conversion for decimal column type" do
+		records = [TestRecord.new("42.0".to_d)]
+		assert_equal("3.412".to_d, @tc.str_to_column_type(records, '3.412', 'a'))
+	end
+	
+	test "str to column type conversion for date column type" do
+		Date::DATE_FORMATS[:default] = "%d/%m/%Y"
+		d1 = Date.strptime("20/1/2011", Date::DATE_FORMATS[:default])
+		records = [TestRecord.new(d1)]
+		d2 = Date.strptime("18/7/2011", Date::DATE_FORMATS[:default])
+		assert_equal(d2, @tc.str_to_column_type(records, '18/7/2011', 'a'))
+	end
+
+	test "str to column type conversion for date column type when input is incomplete" do
+		Date::DATE_FORMATS[:default] = "%d/%m/%Y"
+		d1 = Date.strptime("20/1/2011", Date::DATE_FORMATS[:default])
+		records = [TestRecord.new(d1)]
+		assert_equal(nil, @tc.str_to_column_type(records, '20/1/', 'a'))
+	end
+
+
+	# ---- str_to_column_type ----
+	test "converting a record to a hash, taking care of virtual attributes and attribute paths" do
+		record = TestRecord.new('aa', 'BB', 22.23, 10)
+		assert_equal({'va' => 'AA', 'b.downcase' => 'bb', 'c' => 22.23, 'id' => 10}, @tc.record_to_hash(record, %w{id c b.downcase va}))
+	end
+
+
+
 end
