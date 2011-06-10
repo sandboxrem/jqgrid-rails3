@@ -25,8 +25,8 @@ module JqgridFilter
 	#   $ 		attribute must end with the preceding string
 	# A string with out a prefix or postfix must be contained by the attribute for a match (same as the SQL LIKE operator).
 	def special_match_condition? (param)
-		if	param =~ /^(=|!=|>|~|!=|\^)/ || 					# a prefix match criteria
-			param =~ /.+\.\..+/			||						# a middle match criteria
+		if	param =~ /^(=|!=|~|!~|\^|>|>=|<|<=)/ ||				# a prefix match criteria
+			param =~ /.+\.\..+/					 ||				# a middle match criteria
 			param =~ /\$$/										# a post fix match criteria
 				true
 		else
@@ -50,7 +50,6 @@ module JqgridFilter
 							raise "need to add type conversion here for #{grid_records[0][col].class}"
 					end	
 		rescue ArgumentError
-			puts "ARGUMENT ERROR - str = #{str} for #{grid_records[0][col].class}"
 			# The date or time conversion may have been passed an incomplete or wrong data or time to convert so return nil
 			# so the filtering can be skipped until we get a good value.
 			nil
@@ -216,7 +215,7 @@ module JqgridFilter
 
 	# records may be an array of active records or an array of hashes (one entry per column)
 	def jqgrid_json (records, grid_columns, current_page, per_page, total)
-		json = %Q^{"page": "#{current_page}","total": #{total/per_page.to_i + 1}, "records": "#{total}"^
+		json = %Q^{"page": #{current_page}, "total": #{total/per_page + 1}, "records": #{total}^
 		if total > 0
 			rows = records.map do |record|
 				record[:id] ||= records.index(record)
