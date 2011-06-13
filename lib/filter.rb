@@ -77,10 +77,6 @@ module JqgridFilter
 	# Return the grid records that match the given param for the given col.
 	def filter_by_param (grid_records, col, param)
 		case param 
-			when /^~(.*)/, /^(\^.*)/, /(.*\$)$/		# matches against user regexp, starts with, ends with
-				re = Regexp.new($1, Regexp::IGNORECASE)
-				grid_records.find_all {|r| r[col].to_s =~ re}
-
 			when /^!~(.*)/								# does not match against user regexp
 				re = Regexp.new($1, Regexp::IGNORECASE)
 				grid_records.find_all {|r| r[col].to_s !~ re}
@@ -92,6 +88,10 @@ module JqgridFilter
 			when /^!=(.*)/								# exact non match (use re so case insensitive)
 				re = Regexp.new("^#{$1}$", Regexp::IGNORECASE)
 				grid_records.find_all {|r| r[col].to_s !~ re}
+
+			when /^~(.*)/, /^(\^.*)/, /(.*\$)$/		# matches against user regexp, starts with, ends with
+				re = Regexp.new($1, Regexp::IGNORECASE)
+				grid_records.find_all {|r| r[col].to_s =~ re}
 
 			when /^>=(.*)/								# >=
 				value = str_to_column_type(grid_records, $1, col)
@@ -109,9 +109,9 @@ module JqgridFilter
 				value = str_to_column_type(grid_records, $1, col)
 				grid_records.find_all {|r| r[col] < value} if value
 
-			when /(.+)\.\.(.+)/	
+			when /(.+)\.\.(.+)/							# between a range
 				min = str_to_column_type(grid_records, $1, col)
-				max = str_to_column_type(grid_records, $1, col)
+				max = str_to_column_type(grid_records, $2, col)
 				if min && max
 					grid_records.find_all do |r|
 						value = r[col]
@@ -125,6 +125,21 @@ module JqgridFilter
 		end
 	end
 
+	# Get the range of records to show.
+	def paginate_records (records, current_page, rows_per_page)
+		if records.length > rows_per_page
+			start = current_page * rows_per_page
+			
+			# Show the last full page if the start position will cause records off the end to be shown.
+			start = records.length - rows_per_page if start + rows_per_page > records.length 
+		else
+			# Fewer records than will fit so always show them all.
+			start = 0
+		end
+		
+		records[start, rows_per_page]
+	end
+	
 	def special_filter (model_class, grid_columns, regular, special, sort_index, sort_direction, current_page, rows_per_page)
 		# Cache results between requests to speed up pagination and changes to sort order.  The cache will expire so is only
 		# for short term use, however if any of the underlying tables are updated then the cache will *not* be invalidated
@@ -147,16 +162,7 @@ module JqgridFilter
 		end
 
 		grid_records = grid_records.reverse if sort_direction != 'asc'
-
-		# Get the range of records to show.
-		if grid_records.length > rows_per_page
-			start = current_page * rows_per_page
-			start = grid_records.length - rows_per_page if start + rows_per_page > grid_records.length 
-		else
-			start = 0
-		end
-		
-		return grid_records[start, rows_per_page], grid_records.length
+		return paginate_records(grid_records, current_page, rows_per_page), grid_records.length
 	end
 	
 	def filter_on_params (model_class, grid_columns)

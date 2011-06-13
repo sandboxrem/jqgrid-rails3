@@ -8,6 +8,8 @@ class TestController < ActionController::Base
 	public 	:special_match_condition?
 	public  :str_to_column_type
 	public  :record_to_hash
+	public  :filter_by_param
+	public  :paginate_records
 end
 
 # This acts as a proxy for ActiveRecord in that the 'attributes' can be accessed as methods or via []. 
@@ -23,6 +25,10 @@ class JqgridFilterTest < ActiveSupport::TestCase
 		@tc = TestController.new
 	end
 
+	def make_records (ary)
+		ary.map {|c| TestRecord.new(c)}
+	end
+	
 	# ---- get_column_values ----
 
 	test "get column values for attributes" do
@@ -185,11 +191,97 @@ class JqgridFilterTest < ActiveSupport::TestCase
 
 
 	# ---- str_to_column_type ----
+
 	test "converting a record to a hash, taking care of virtual attributes and attribute paths" do
 		record = TestRecord.new('aa', 'BB', 22.23, 10)
 		assert_equal({'va' => 'AA', 'b.downcase' => 'bb', 'c' => 22.23, 'id' => 10}, @tc.record_to_hash(record, %w{id c b.downcase va}))
 	end
 
 
+	# ---- filter_by_param ----
+	
+	test "filter records with the default 'contains' test" do
+		records = make_records(%w{red orange yellow green blue indigo violet})
+		assert_equal(make_records(%w{yellow blue violet}), @tc.filter_by_param(records, 'a', 'l'))
+	end
 
+	test "filter records with the default 'contains' test and it is case insensitive" do
+		records = make_records(%w{red orange yellow green blue indigo violet})
+		assert_equal(make_records(%w{yellow blue violet}), @tc.filter_by_param(records, 'a', 'L'))
+	end
+
+	test "filter records with the 'begins with' test" do
+		records = make_records(%w{red orange yellow green blue indigo violet})
+		assert_equal(make_records(%w{orange}), @tc.filter_by_param(records, 'a', '^o'))
+	end
+
+	test "filter records with the 'ends with' test" do
+		records = make_records(%w{red orange yellow green blue indigo violet})
+		assert_equal(make_records(%w{indigo}), @tc.filter_by_param(records, 'a', 'o$'))
+	end
+
+	test "filter records that match a regular expression' test" do
+		records = make_records(%w{red orange yellow green blue indigo violet})
+		assert_equal(make_records(%w{red}), @tc.filter_by_param(records, 'a', '~^...$'))
+	end
+
+	test "filter records that don't match a regular expression' test" do
+		records = make_records(%w{red orange yellow green blue indigo violet})
+		assert_equal(make_records(%w{orange yellow green blue indigo violet}), @tc.filter_by_param(records, 'a', '!~^...$'))
+	end
+
+	test "filter records that exactly match' test" do
+		records = make_records(%w{red reddy wreddy})
+		assert_equal(make_records(%w{red}), @tc.filter_by_param(records, 'a', '=RED'))
+	end
+
+	test "filter records that do not exactly match' test" do
+		records = make_records(%w{red reddy wreddy})
+		assert_equal(make_records(%w{reddy wreddy}), @tc.filter_by_param(records, 'a', '!=RED'))
+	end
+
+	test "filter records that are less than' test" do
+		records = make_records([1, 2, 3, 4, 5, 6])
+		assert_equal(make_records([1, 2, 3]), @tc.filter_by_param(records, 'a', '<4'))
+	end
+
+	test "filter records that are less than or equal' test" do
+		records = make_records([1, 2, 3, 4, 5, 6])
+		assert_equal(make_records([1, 2, 3, 4]), @tc.filter_by_param(records, 'a', '<=4'))
+	end
+
+	test "filter records that are greater than' test" do
+		records = make_records([1, 2, 3, 4, 5, 6])
+		assert_equal(make_records([5, 6]), @tc.filter_by_param(records, 'a', '>4'))
+	end
+
+	test "filter records that are greater than or equal' test" do
+		records = make_records([1, 2, 3, 4, 5, 6])
+		assert_equal(make_records([4, 5, 6]), @tc.filter_by_param(records, 'a', '>=4'))
+	end
+	
+	test "filter records that are in a range' test" do
+		records = make_records([1, 2, 3, 4, 5, 6])
+		assert_equal(make_records([3, 4]), @tc.filter_by_param(records, 'a', '3..5'))
+	end
+	
+	
+	# ---- paginate_records ----
+	
+	test "pagination where there are fewer records than the page will hold" do
+		records = [1, 2, 3, 4]
+		assert_equal([1, 2, 3, 4], @tc.paginate_records(records, 2, 10))
+	end
+	
+	test "pagination for a middle page" do
+		records = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+		assert_equal([7, 8, 9], @tc.paginate_records(records, 2, 3))
+	end
+	
+	test "pagination for an end page" do
+		records = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+		assert_equal([8, 9, 10, 11, 12], @tc.paginate_records(records, 3, 5))
+	end
+	
+	
 end
