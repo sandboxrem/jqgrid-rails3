@@ -1,8 +1,6 @@
 class <%= class_name.pluralize %>Controller < ApplicationController
 	respond_to :html,:json
   
-	protect_from_forgery :except => [:post_data]
-  
 	# Don't forget to edit routes if you're using RESTful routing
 	# 
 	#resources :<%=plural_name%>,:only => [:index] do
