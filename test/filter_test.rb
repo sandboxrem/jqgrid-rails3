@@ -14,10 +14,33 @@ end
 
 # This acts as a proxy for ActiveRecord in that the 'attributes' can be accessed as methods or via []. 
 TestRecord = Struct.new(:a, :b, :c, :id) do
+	# A virtual attribute
 	def va
 		a.upcase
 	end
 end
+
+class TestModel
+	# Proxy for an active record model returning a column hash.  The only column parameter we are interested in is type.
+	Type = Struct.new(:type)
+	
+	attr_reader	:columns_hash
+	
+	def initialize (col = nil, type = nil)
+		if col
+			@columns_hash = { col => Type.new(type)}
+		else
+			@columns_hash = {	'string' 	=> Type.new(:string),
+			 					'integer' 	=> Type.new(:integer),
+								'float'		=> Type.new(:float),
+								'decimal'	=> Type.new(:decimal),
+								'date'		=> Type.new(:date),
+								'datetime'  => Type.new(:datetime)
+							}
+		end
+	end
+end
+
 
 class JqgridFilterTest < ActiveSupport::TestCase
 
@@ -27,8 +50,8 @@ class JqgridFilterTest < ActiveSupport::TestCase
 
 	def make_records (ary)
 		ary.map {|c| TestRecord.new(c)}
-	end
-	
+	end	
+
 	# ---- get_column_values ----
 
 	test "get column values for attributes" do
@@ -150,47 +173,37 @@ class JqgridFilterTest < ActiveSupport::TestCase
 
 		}.each {|param, result| assert_equal(result, @tc.special_match_condition?(param), "For test param: '#{param}'")}
 	end
-	
-	
+
 	# ---- str_to_column_type ----
 	
 	test "str to column type conversion for string column type" do
-		records = [TestRecord.new("aa")]
-		assert_equal("hello", @tc.str_to_column_type(records, 'hello', 'a'))
+		assert_equal("hello", @tc.str_to_column_type(TestModel.new, 'hello', 'string'))
 	end
 
 	test "str to column type conversion for fixnum column type" do
-		records = [TestRecord.new(42)]
-		assert_equal(1234, @tc.str_to_column_type(records, '1234', 'a'))
+		assert_equal(1234, @tc.str_to_column_type(TestModel.new, '1234', 'integer'))
 	end
 
 	test "str to column type conversion for float column type" do
-		records = [TestRecord.new(42.0)]
-		assert_equal(3.412, @tc.str_to_column_type(records, '3.412', 'a'))
+		assert_equal(3.412, @tc.str_to_column_type(TestModel.new, '3.412', 'float'))
 	end
 
 	test "str to column type conversion for decimal column type" do
 		records = [TestRecord.new("42.0".to_d)]
-		assert_equal("3.412".to_d, @tc.str_to_column_type(records, '3.412', 'a'))
+		assert_equal("3.412".to_d, @tc.str_to_column_type(TestModel.new, '3.412', 'decimal'))
 	end
 	
 	test "str to column type conversion for date column type" do
 		Date::DATE_FORMATS[:default] = "%d/%m/%Y"
-		d1 = Date.strptime("20/1/2011", Date::DATE_FORMATS[:default])
-		records = [TestRecord.new(d1)]
 		d2 = Date.strptime("18/7/2011", Date::DATE_FORMATS[:default])
-		assert_equal(d2, @tc.str_to_column_type(records, '18/7/2011', 'a'))
+		assert_equal(d2, @tc.str_to_column_type(TestModel.new, '18/7/2011', 'date'))
 	end
 
 	test "str to column type conversion for date column type when input is incomplete" do
-		Date::DATE_FORMATS[:default] = "%d/%m/%Y"
-		d1 = Date.strptime("20/1/2011", Date::DATE_FORMATS[:default])
-		records = [TestRecord.new(d1)]
-		assert_equal(nil, @tc.str_to_column_type(records, '20/1/', 'a'))
+		assert_equal(nil, @tc.str_to_column_type(TestModel.new, '20/1/', 'date'))
 	end
 
-
-	# ---- str_to_column_type ----
+	# ---- record_to_hash ----
 
 	test "converting a record to a hash, taking care of virtual attributes and attribute paths" do
 		record = TestRecord.new('aa', 'BB', 22.23, 10)
@@ -202,69 +215,68 @@ class JqgridFilterTest < ActiveSupport::TestCase
 	
 	test "filter records with the default 'contains' test" do
 		records = make_records(%w{red orange yellow green blue indigo violet})
-		assert_equal(make_records(%w{yellow blue violet}), @tc.filter_by_param(records, 'a', 'l'))
+		assert_equal(make_records(%w{yellow blue violet}), @tc.filter_by_param(TestModel.new('a', :string), records, 'a', 'l'))
 	end
 
 	test "filter records with the default 'contains' test and it is case insensitive" do
 		records = make_records(%w{red orange yellow green blue indigo violet})
-		assert_equal(make_records(%w{yellow blue violet}), @tc.filter_by_param(records, 'a', 'L'))
+		assert_equal(make_records(%w{yellow blue violet}), @tc.filter_by_param(TestModel.new('a', :string), records, 'a', 'L'))
 	end
 
 	test "filter records with the 'begins with' test" do
 		records = make_records(%w{red orange yellow green blue indigo violet})
-		assert_equal(make_records(%w{orange}), @tc.filter_by_param(records, 'a', '^o'))
+		assert_equal(make_records(%w{orange}), @tc.filter_by_param(TestModel.new('a', :string), records, 'a', '^o'))
 	end
 
 	test "filter records with the 'ends with' test" do
 		records = make_records(%w{red orange yellow green blue indigo violet})
-		assert_equal(make_records(%w{indigo}), @tc.filter_by_param(records, 'a', 'o$'))
+		assert_equal(make_records(%w{indigo}), @tc.filter_by_param(TestModel.new('a', :string), records, 'a', 'o$'))
 	end
 
 	test "filter records that match a regular expression' test" do
 		records = make_records(%w{red orange yellow green blue indigo violet})
-		assert_equal(make_records(%w{red}), @tc.filter_by_param(records, 'a', '~^...$'))
+		assert_equal(make_records(%w{red}), @tc.filter_by_param(TestModel.new('a', :string), records, 'a', '~^...$'))
 	end
 
 	test "filter records that don't match a regular expression' test" do
 		records = make_records(%w{red orange yellow green blue indigo violet})
-		assert_equal(make_records(%w{orange yellow green blue indigo violet}), @tc.filter_by_param(records, 'a', '!~^...$'))
+		assert_equal(make_records(%w{orange yellow green blue indigo violet}), @tc.filter_by_param(TestModel.new('a', :string), records, 'a', '!~^...$'))
 	end
 
 	test "filter records that exactly match' test" do
 		records = make_records(%w{red reddy wreddy})
-		assert_equal(make_records(%w{red}), @tc.filter_by_param(records, 'a', '=RED'))
+		assert_equal(make_records(%w{red}), @tc.filter_by_param(TestModel.new('a', :string), records, 'a', '=RED'))
 	end
 
 	test "filter records that do not exactly match' test" do
 		records = make_records(%w{red reddy wreddy})
-		assert_equal(make_records(%w{reddy wreddy}), @tc.filter_by_param(records, 'a', '!=RED'))
+		assert_equal(make_records(%w{reddy wreddy}), @tc.filter_by_param(TestModel.new('a', :string), records, 'a', '!=RED'))
 	end
 
 	test "filter records that are less than' test" do
 		records = make_records([1, 2, 3, 4, 5, 6])
-		assert_equal(make_records([1, 2, 3]), @tc.filter_by_param(records, 'a', '<4'))
+		assert_equal(make_records([1, 2, 3]), @tc.filter_by_param(TestModel.new('a', :integer), records, 'a', '<4'))
 	end
 
 	test "filter records that are less than or equal' test" do
 		records = make_records([1, 2, 3, 4, 5, 6])
-		assert_equal(make_records([1, 2, 3, 4]), @tc.filter_by_param(records, 'a', '<=4'))
+		assert_equal(make_records([1, 2, 3, 4]), @tc.filter_by_param(TestModel.new('a', :integer), records, 'a', '<=4'))
 	end
 
 	test "filter records that are greater than' test" do
 		records = make_records([1, 2, 3, 4, 5, 6])
-		assert_equal(make_records([5, 6]), @tc.filter_by_param(records, 'a', '>4'))
+		assert_equal(make_records([5, 6]), @tc.filter_by_param(TestModel.new('a', :integer), records, 'a', '>4'))
 	end
 
 	test "filter records that are greater than or equal' test" do
 		records = make_records([1, 2, 3, 4, 5, 6])
-		assert_equal(make_records([4, 5, 6]), @tc.filter_by_param(records, 'a', '>=4'))
+		assert_equal(make_records([4, 5, 6]), @tc.filter_by_param(TestModel.new('a', :integer), records, 'a', '>=4'))
 	end
 	
 	test "filter records that are in a range' test" do
 		records = make_records([1, 2, 3, 4, 5, 6])
-		assert_equal(make_records([3, 4]), @tc.filter_by_param(records, 'a', '3..5'))
+		assert_equal(make_records([3, 4]), @tc.filter_by_param(TestModel.new('a', :integer), records, 'a', '3..5'))
 	end
-	
 	
 	# ---- paginate_records ----
 	
@@ -282,6 +294,5 @@ class JqgridFilterTest < ActiveSupport::TestCase
 		records = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 		assert_equal([8, 9, 10, 11, 12], @tc.paginate_records(records, 3, 5))
 	end
-	
 	
 end

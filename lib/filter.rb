@@ -34,20 +34,17 @@ module JqgridFilter
 		end
 	end
 	
-	# Convert the str to the same type as the column so we can use comparison operators.
-	# Use the value from grid_records to guess the type as any virtual attributes or attribute
-	# paths will have been resolved.
-	def str_to_column_type (grid_records, str, col)
+	def str_to_column_type (model_class, str, col)
 		begin
-			value = case grid_records[0][col]
-						when String		then str
-						when Fixnum		then str.to_i
-						when Float		then str.to_f
-						when Date		then Date.strptime(str, Date::DATE_FORMATS[:default] || Date::DATE_FORMATS[:number])
-						when Time		then Time.strptime(str, Time::DATE_FORMATS[:default] || Time::DATE_FORMATS[:number])
-						when BigDecimal then str.to_d
+			value = case model_class.columns_hash[col].type
+						when :string	then str
+						when :integer	then str.to_i
+						when :float		then str.to_f
+						when :date		then Date.strptime(str, Date::DATE_FORMATS[:default] || Date::DATE_FORMATS[:number])
+						when :datetime	then Time.strptime(str, Time::DATE_FORMATS[:default] || Time::DATE_FORMATS[:number])
+						when :decimal 	then str.to_d
 						else
-							raise "need to add type conversion here for #{grid_records[0][col].class}"
+							raise "need to add type conversion here for #{model_class.columns_hash[col].type.inspect}"
 					end	
 		rescue ArgumentError
 			# The date or time conversion may have been passed an incomplete or wrong data or time to convert so return nil
@@ -75,7 +72,7 @@ module JqgridFilter
 	end
 	
 	# Return the grid records that match the given param for the given col.
-	def filter_by_param (grid_records, col, param)
+	def filter_by_param (model_class, grid_records, col, param)
 		case param 
 			when /^!~(.*)/								# does not match against user regexp
 				re = Regexp.new($1, Regexp::IGNORECASE)
@@ -94,24 +91,24 @@ module JqgridFilter
 				grid_records.find_all {|r| r[col].to_s =~ re}
 
 			when /^>=(.*)/								# >=
-				value = str_to_column_type(grid_records, $1, col)
+				value = str_to_column_type(model_class, $1, col)
 				grid_records.find_all {|r| r[col] >= value} if value
 
 			when /^>(.*)/								# >
-				value = str_to_column_type(grid_records, $1, col)
+				value = str_to_column_type(model_class, $1, col)
 				grid_records.find_all {|r| r[col] > value} if value
 
 			when /^<=(.*)/								# <=
-				value = str_to_column_type(grid_records, $1, col)
+				value = str_to_column_type(model_class, $1, col)
 				grid_records.find_all {|r| r[col] <= value} if value
 
 			when /^<(.*)/								# <
-				value = str_to_column_type(grid_records, $1, col)
+				value = str_to_column_type(model_class, $1, col)
 				grid_records.find_all {|r| r[col] < value} if value
 
 			when /(.+)\.\.(.+)/							# between a range
-				min = str_to_column_type(grid_records, $1, col)
-				max = str_to_column_type(grid_records, $2, col)
+				min = str_to_column_type(model_class, $1, col)
+				max = str_to_column_type(model_class, $2, col)
 				if min && max
 					grid_records.find_all do |r|
 						value = r[col]
@@ -154,7 +151,7 @@ module JqgridFilter
 			grid_records = grid_records.map {|record| record_to_hash(record, grid_columns)}
 	
 			# Successively filter based on each condition
-			special.each {|col, param| grid_records = filter_by_param(grid_records, col, param)}
+			special.each {|col, param| grid_records = filter_by_param(model_class, grid_records, col, param)}
 			
 			# Sort the results (this will be done on :id if non provided so as to stay consistent with the AR path)
 			grid_records.sort! {|a, b| a[sort_index] <=> b[sort_index]} if sort_index != :id
