@@ -25,7 +25,6 @@ module JqgridView
         'jqgrid/jquery.jqGrid.min.js',
         # Don't know if we need it, if smth not working, just uncomment it
         #'jqgrid/grid.tbltogrid',
-        'jqgrid/jquery.contextmenu.r2.packed.js', 
         :cache => 'jqgrid-js'
     end
 
@@ -57,7 +56,6 @@ module JqgridView
 			:url				 => "#{url}?q=1",
 			:caption			 => caption,
 			:datatype			 => :json,
-
 
 			# Can be :inline to allow inline editing in the table or :form to pop up a form to do the editing in.
 			# If it is nil or false then no editing can be done.
@@ -164,6 +162,7 @@ module JqgridView
 	#  									as part of the view.
 	def error_handler_options (handler)
 	   	handler = @grid_options.delete(handler)
+
 		case handler
 			when nil
 				# Null error handler - just ignore all errors.
