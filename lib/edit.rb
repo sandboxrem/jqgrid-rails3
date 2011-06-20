@@ -1,4 +1,3 @@
-
 module JqgridEdit
 	private
 	
@@ -16,6 +15,7 @@ module JqgridEdit
 				record.update_attributes(model_params)
 				record_data = {}
 				grid_columns.each {|c| record_data[c] = get_column_value(record, c)}
+				
 	  		when 'del'
 				model_class.destroy_all(:id => params[:id].split(","))
 	  		else
@@ -25,9 +25,20 @@ module JqgridEdit
  		if !record || record.errors.empty?
 			render :json => [false, error_message, record_data] 
 		else
+			# 
+			# record.errors.entries.each do |error|
+			# 	error_message << "<strong>#{model_class.human_attribute_name(error[0])}</strong> : #{error[1]}<br/>"
+			# end
+			error_message << "<table>"
 			record.errors.entries.each do |error|
-				error_message << "<strong>#{model_class.human_attribute_name(error[0])}</strong> : #{error[1]}<br/>"
+				error_message << "<tr><td><strong>#{model_class.human_attribute_name(error[0])}</strong></td> <td>: #{error[1]}</td><td>"
 			end
+			error_message << "</table>"
+			
+			# 
+			# record.errors.entries.each do |error|
+			# 	error_message << "<strong>#{model_class.human_attribute_name(error[0])}</strong> : #{error[1]}<br/>"
+			# end
 			render :json =>[true, error_message, record_data]
 		end
 	end

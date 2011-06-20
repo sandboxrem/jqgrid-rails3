@@ -181,7 +181,7 @@ module JqgridView
 			       		var resText = JSON.parse (r.responseText)
 			          	if (resText[0])
 					  	{
-			            	$('#flash_alert').html("<span class='ui-icon ui-icon-info' style='float:left; margin-right:.3em;'><\/span>"+resText[1])
+			            	$('#flash_alert').html('<div id="error_explanation">' + resText[1] + '</div>')
 			            	$('#flash_alert').slideDown()
 			            	window.setTimeout(function() {$('#flash_alert').slideUp()}, 3000)
 			              	return false
