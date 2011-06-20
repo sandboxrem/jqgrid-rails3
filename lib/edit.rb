@@ -4,7 +4,8 @@ module JqgridEdit
 	def grid_add_edit_del (model_class, grid_columns)
 		error_message = ""
 		model_params = {}	
-		grid_columns.each {|c| model_params[c] = params[c] if params[c]}
+		grid_columns.each {|c| model_params[c] = str_to_column_type(model_class, params[c], c) if params[c]}
+
 	 	case params[:oper]
 			when 'add'
 				if params["id"] == "_empty"
@@ -14,8 +15,7 @@ module JqgridEdit
 				record = model_class.find(params[:id])
 				record.update_attributes(model_params)
 				record_data = {}
-				grid_columns.each {|c| record_data[c] = get_column_value(record, c)}
-				
+				grid_columns.each {|c| record_data[c] = get_column_value(record, c).to_s}
 	  		when 'del'
 				model_class.destroy_all(:id => params[:id].split(","))
 	  		else
