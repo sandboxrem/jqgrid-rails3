@@ -38,13 +38,14 @@ module JqgridFilter
 		begin
 			value = case model_class.columns_hash[col].type
 						when :string	then str
+						when :text		then str
 						when :integer	then str.to_i
 						when :float		then str.to_f
 						when :date		then Date.strptime(str, Date::DATE_FORMATS[:default] || Date::DATE_FORMATS[:number])
 						when :datetime	then Time.strptime(str, Time::DATE_FORMATS[:default] || Time::DATE_FORMATS[:number])
 						when :decimal 	then str.to_d
 						else
-							raise "need to add type conversion here for #{model_class.columns_hash[col].type.inspect}"
+							raise "need to add type conversion here for #{model_class.columns_hash[col].type.inspect} for col #{col} with string #{str}"
 					end	
 		rescue ArgumentError
 			# The date or time conversion may have been passed an incomplete or wrong data or time to convert so return nil
