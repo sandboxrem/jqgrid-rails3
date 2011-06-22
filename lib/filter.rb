@@ -28,24 +28,6 @@ module JqgridFilter
 			end
 		end
 		
-		# records may be an array of active records or an array of hashes (one entry per column)
-		def jqgrid_json (records, grid_columns, current_page, per_page, total)
-			json = %Q^{"page": #{current_page}, "total": #{total/per_page + 1}, "records": #{total}^
-			if total > 0
-				rows = records.map do |record|
-					record[:id] ||= records.index(record)
-					columns = grid_columns.map do |column|
-						value = record[column] || get_column_value(record, column)
-						value = escape_json(value) if value && value.kind_of?(String)
-						%Q^"#{value}"^
-					end
-					%Q^{"id": "#{record[:id]}", "cell": [#{columns.join(',')}]}^
-				end
-				json << %Q^, "rows": [ #{rows.join(',')}]^
-			end
-			json << "}"
-		end
-
 		sort_on_virtual_attribute = !model_class.columns_hash[sort_index.to_s] ? sort_index : false
 
 		if !sort_on_virtual_attribute && special_attribute_params.empty?
@@ -64,6 +46,24 @@ module JqgridFilter
 		
 		return grid_records, total_entries, current_page, rows_per_page
 	end	
+
+	# records may be an array of active records or an array of hashes (one entry per column)
+	def jqgrid_json (records, grid_columns, current_page, per_page, total)
+		json = %Q^{"page": #{current_page}, "total": #{total/per_page + 1}, "records": #{total}^
+		if total > 0
+			rows = records.map do |record|
+				record[:id] ||= records.index(record)
+				columns = grid_columns.map do |column|
+					value = record[column] || get_column_value(record, column)
+					value = escape_json(value) if value && value.kind_of?(String)
+					%Q^"#{value}"^
+				end
+				%Q^{"id": "#{record[:id]}", "cell": [#{columns.join(',')}]}^
+			end
+			json << %Q^, "rows": [ #{rows.join(',')}]^
+		end
+		json << "}"
+	end
 
 	private
 	
