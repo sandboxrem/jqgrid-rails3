@@ -1,5 +1,70 @@
 module JqgridFilter
 
+	def filter_on_params (model_class, grid_columns)
+		ar_options = {}
+		current_page = params[:page] ? params[:page].to_i : 1
+		rows_per_page = params[:rows] ? params[:rows].to_i : 10
+
+		# Make sorting consistent regardless if done by AR or manually.
+		sort_index = params[:sidx] && params[:sidx] != '' ? params[:sidx] : :id
+		sort_dir = params[:sord] || 'asc'
+		ar_options[:order] = "#{sort_index} #{sort_dir}"
+
+		# Analyse the input params to see if any have the special match conditions or are virtual attributes.
+		regular_attribute_params = {}
+		special_attribute_params = {}
+		grid_columns.each do |c|
+			param = params[c]
+			if param
+				if model_class.columns_hash[c.to_s]
+					if special_match_condition?(param)
+						special_attribute_params[c] = param
+					else
+						regular_attribute_params[c] = param
+					end
+				else
+					special_attribute_params[c] = param
+				end
+			end
+		end
+		
+		# records may be an array of active records or an array of hashes (one entry per column)
+		def jqgrid_json (records, grid_columns, current_page, per_page, total)
+			json = %Q^{"page": #{current_page}, "total": #{total/per_page + 1}, "records": #{total}^
+			if total > 0
+				rows = records.map do |record|
+					record[:id] ||= records.index(record)
+					columns = grid_columns.map do |column|
+						value = record[column] || get_column_value(record, column)
+						value = escape_json(value) if value && value.kind_of?(String)
+						%Q^"#{value}"^
+					end
+					%Q^{"id": "#{record[:id]}", "cell": [#{columns.join(',')}]}^
+				end
+				json << %Q^, "rows": [ #{rows.join(',')}]^
+			end
+			json << "}"
+		end
+
+		sort_on_virtual_attribute = !model_class.columns_hash[sort_index.to_s] ? sort_index : false
+
+		if !sort_on_virtual_attribute && special_attribute_params.empty?
+			# Get rid of any caching.
+			ar_options[:conditions] = filter_by_conditions(regular_attribute_params) if params[:_search] == "true"
+			ar_options[:page] = current_page
+			ar_options[:per_page] = rows_per_page
+
+			grid_records = model_class.paginate(ar_options)
+			total_entries = grid_records.total_entries
+		else
+			grid_records, total_entries = special_filter(model_class, grid_columns, regular_attribute_params, special_attribute_params, 
+															sort_index, sort_dir,
+															current_page, rows_per_page)
+		end
+		
+		return grid_records, total_entries, current_page, rows_per_page
+	end	
+
 	private
 	
 	# Convert the given columns and their values into SQL search terms while
@@ -163,52 +228,6 @@ module JqgridFilter
 		return paginate_records(grid_records, current_page, rows_per_page), grid_records.length
 	end
 	
-	def filter_on_params (model_class, grid_columns)
-		ar_options = {}
-		current_page = params[:page] ? params[:page].to_i : 1
-		rows_per_page = params[:rows] ? params[:rows].to_i : 10
-
-		# Make sorting consistent regardless if done by AR or manually.
-		sort_index = params[:sidx] && params[:sidx] != '' ? params[:sidx] : :id
-		sort_dir = params[:sord] || 'asc'
-		ar_options[:order] = "#{sort_index} #{sort_dir}"
-
-		# Analyse the input params to see if any have the special match conditions or are virtual attributes.
-		regular_attribute_params = {}
-		special_attribute_params = {}
-		grid_columns.each do |c|
-			param = params[c]
-			if param
-				if model_class.columns_hash[c.to_s]
-					if special_match_condition?(param)
-						special_attribute_params[c] = param
-					else
-						regular_attribute_params[c] = param
-					end
-				else
-					special_attribute_params[c] = param
-				end
-			end
-		end
-		
-		sort_on_virtual_attribute = !model_class.columns_hash[sort_index.to_s] ? sort_index : false
-
-		if !sort_on_virtual_attribute && special_attribute_params.empty?
-			# Get rid of any caching.
-			ar_options[:conditions] = filter_by_conditions(regular_attribute_params) if params[:_search] == "true"
-			ar_options[:page] = current_page
-			ar_options[:per_page] = rows_per_page
-
-			grid_records = model_class.paginate(ar_options)
-			total_entries = grid_records.total_entries
-		else
-			grid_records, total_entries = special_filter(model_class, grid_columns, regular_attribute_params, special_attribute_params, 
-															sort_index, sort_dir,
-															current_page, rows_per_page)
-		end
-		
-		return grid_records, total_entries, current_page, rows_per_page
-	end	
 	
 	JSON_ESCAPE_MAP = {	  '\\'	  => '\\\\',
 						  '</'	  => '<\/',
@@ -216,24 +235,6 @@ module JqgridFilter
 						  "\n"	  => '\n',
 						  "\r"	  => '\n',
 						  '"'	  => '\\"' }
-
-	# records may be an array of active records or an array of hashes (one entry per column)
-	def jqgrid_json (records, grid_columns, current_page, per_page, total)
-		json = %Q^{"page": #{current_page}, "total": #{total/per_page + 1}, "records": #{total}^
-		if total > 0
-			rows = records.map do |record|
-				record[:id] ||= records.index(record)
-				columns = grid_columns.map do |column|
-					value = record[column] || get_column_value(record, column)
-					value = escape_json(value) if value && value.kind_of?(String)
-					%Q^"#{value}"^
-				end
-				%Q^{"id": "#{record[:id]}", "cell": [#{columns.join(',')}]}^
-			end
-			json << %Q^, "rows": [ #{rows.join(',')}]^
-		end
-		json << "}"
-	end
 
 	def escape_json(json)
 		json ? json.gsub(/(\\|<\/|\r\n|[\n\r"])/) { JSON_ESCAPE_MAP[$1] } : ''
