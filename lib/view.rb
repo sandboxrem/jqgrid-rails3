@@ -2,11 +2,15 @@ module JqgridView
 
 	private
 	
-	class Javascript 
+	class Javascript
 		def initialize (code)
 			@code = code
 		end
 
+		def to_s
+			@code
+		end
+		
 		def to_json
 			@code
 		end
@@ -92,16 +96,17 @@ module JqgridView
 		# options.
  		@grid_options = default_options.merge(@@app_grid_options).merge(options)
   		@grid_methods = []
-
+		@grid_events = {}
+		
     	# Take out the higher level options and convert to options and jqgrid methods.		
 		
 		grid_loaded_options (:grid_loaded)
- 		master_details_options(:master_details, :details_url, :details_caption)
 		context_menu_options(:context_menu)
 		selection_options(:selection, :selection_handler)
 		error_handler_options (:error_handler)
 		pager_options(:pager)	
 		inline_edit
+ 		master_details
 		navigator_options
  		search_options(:search)
 		resizable
@@ -139,11 +144,44 @@ module JqgridView
 	
 	# Convert the grid options to js properties.
 	def grid_options
+		grid_events
 		js_properties(@grid_options).join(",\n")
 	end
 	
 	def grid_methods
 		@grid_methods.join("\n")
+	end
+
+	# We may add more than one function to be triggered on an event.
+	def add_event (event, function)
+		if @grid_events[event]
+			@grid_events[event] << function
+		else
+			@grid_events[event] = [function]
+		end
+	end
+	
+	# Convert any grid events into grid options once any proxy functions have been introduced to cope with multiple
+	# handlers for the same event.
+	def grid_events
+		@grid_events.each do |event, functions|
+			if functions.length == 1
+				@grid_options[event] = functions[0]
+			else
+				# Extract the declaration so we know how to call the converted functions and how we are going to be called.
+				declaration = functions[0].to_s[/(.*?)\{/, 1]
+				arguments = declaration[/(\(.*?\))/, 1]
+				proxy_function = declaration + "{\n"
+				functions.each_with_index do |f, i|
+					# Convert the anonymous functions into real functions.
+					@grid_methods << f.to_s.sub(/function/, "function #{event}_#{i}")
+
+					# Add to the proxy function
+					proxy_function << "\t#{event}_#{i}#{arguments}\n"
+				end
+				@grid_options[event] = Javascript.new(proxy_function += "}")
+			end
+		end
 	end
 	
 	# Enable filtering (by default)
@@ -152,7 +190,7 @@ module JqgridView
 		if options
 			@grid_methods << 
 			%Q^jQuery("##{@id}").navButtonAdd("##{@id}_pager", {caption: "", title: $.jgrid.nav.searchtitle, buttonicon :'ui-icon-search', onClickButton:function(){ jQuery("##{@id}")[0].toggleToolbar() } })^
-		      		@grid_methods << %Q^jQuery("##{@id}").filterToolbar({#{js_properties(options).join(', ')}}); jQuery("##{@id}")[0].toggleToolbar()^
+			@grid_methods << %Q^jQuery("##{@id}").filterToolbar({#{js_properties(options).join(', ')}}); jQuery("##{@id}")[0].toggleToolbar()^
 		end
     end
 
@@ -206,7 +244,7 @@ module JqgridView
 		if @grid_options[:edit_method] == :inline
 			# The code is passed in as a option so must not be converted into a quoted string when
 			# converted to json.  After the edit is completed the row is selected again.
-			@grid_options[:ondblClickRow] = Javascript.new(
+			add_event :ondblClickRow, Javascript.new(
 			%Q^function(id){
 	        	if (id && id !== lastedit)
 				{
@@ -221,7 +259,7 @@ module JqgridView
 	        }^)
 	
 			# If we are in the middle of an inline edit and the user selects another row then abandon the edit.
-			@grid_options[:onSelectRow] = Javascript.new(
+			add_event :onSelectRow, Javascript.new(
 			%Q^function(id){
 	        	if (id && id !== lastsel && id != lastedit)
 				{
@@ -234,30 +272,37 @@ module JqgridView
 		end
 	end
 
-	# Enable master-details
-	def master_details_options (master_details, url, caption)
-		url = @grid_options.delete(url)
-		caption = @grid_options.delete(caption)
-		if @grid_options.delete(master_details)
-			@grid_options[:onSelectRow] = Javascript.new(
-			%Q^function(ids) { 
-					if (ids == null) 
-					{ 
-						ids = 0; 
-						if (jQuery ("##{@id}_details").getGridParam('records') > 0) 
+		# The options hash key is now :master_details and the value for this key is either a hash (for a single detail) 
+		# or an array of hashes (for multiple details).  A detail hash has the following keys	
+		#     :grid_id		the id of the grid to use to display the detail view
+		#     :url			the url string to a access the detail attributes
+		#     :caption		caption string
+		def master_details
+		if details = @grid_options.delete(:master_details)
+			details = [details] if details.kind_of? Hash
+			details.each do |detail|
+				add_event :onSelectRow, Javascript.new(
+					%Q^function(ids) { 
+						if (ids == null) 
 						{ 
-							jQuery ("##{@id}_details").setGridParam({url:"#{url}?q=1&id="+ids,page:1})
-							.setCaption ("#{caption}: "+ids)
-							.trigger('reloadGrid'); 
+							ids = 0; 
+							if (jQuery ("##{detail[:grid_id]}").getGridParam('records') > 0) 
+							{ 
+								jQuery ("##{detail[:grid_id]}").setGridParam({url:"#{detail[:url]}?q=1&id="+ids,page:1})
+								.setCaption ("#{detail[:caption]}: "+ids)
+								.trigger('reloadGrid'); 
+							} 
 						} 
-					} 
-					else 
-					{ 
-						jQuery("##{id}_details").setGridParam({url:"#{url}?q=1&id="+ids,page:1})
-							.setCaption("#{caption} : "+ids)
-							.trigger('reloadGrid'); 
-					} 
-				}^)
+						else 
+						{ 
+							jQuery("##{detail[:grid_id]}").setGridParam({url:"#{detail[:url]}?q=1&id="+ids,page:1})
+								.setCaption("#{detail[:caption]} : "+ ids)
+								.trigger('reloadGrid'); 
+						}
+					}^
+				)
+			end
+
 		end
 	end
 	
