@@ -31,7 +31,6 @@ module JqgridFilter
 		sort_on_virtual_attribute = !model_class.columns_hash[sort_index.to_s] ? sort_index : false
 
 		if !sort_on_virtual_attribute && special_attribute_params.empty?
-			# Get rid of any caching.
 			ar_options[:conditions] = filter_by_conditions(regular_attribute_params) if params[:_search] == "true"
 			ar_options[:page] = current_page
 			ar_options[:per_page] = rows_per_page
@@ -44,7 +43,7 @@ module JqgridFilter
 															current_page, rows_per_page)
 		end
 		
-		return grid_records, total_entries, current_page, rows_per_page
+		jqgrid_json(grid_records, detail_grid_columns, current_page, rows_per_page, total_entries)
 	end	
 
 	# records may be an array of active records or an array of hashes (one entry per column)
@@ -65,13 +64,38 @@ module JqgridFilter
 		json << "}"
 	end
 
+
+	def filter_details (model_class, foreign_id_attribute, detail_model_class, detail_grid_columns)
+		if params[:id].present?
+			# Find the foreign key the currently selected row will use to access in the detail model.  This may be the id of the detail model or be
+			# the foreign key we need to search on.  If the foreign key name matches up with the detail model class (relying on Rail's conventions)
+			# then convert it to an id.
+			foreign_id = get_column_value(model_class.find(params.delete(:id)), foreign_id_attribute)
+			foreign_id_attribute = 'id' if foreign_id_attribute =~ Regexp.new("^#{detail_model_class}", Regexp::IGNORECASE)
+
+			# We want to use the filter_on_params method so we get all the special filtering and sorting capabilities in detail grids as well so
+			# make search true in case it isn't and as the foreign_id_attribute isn't likely to be one of the grid columns add in in temporarily.
+			params[:_search] = 'true'
+			params[foreign_id_attribute.to_sym] = foreign_id
+			grid_records, total_entries, current_page, rows_per_page = filter_on_params(detail_model_class, detail_grid_columns + [foreign_id_attribute])
+		else
+			grid_records = []
+			total_entries = 0
+			current_page = params[:page].to_i
+			rows_per_page = params[:rows].to_i
+		end
+
+		jqgrid_json(grid_records, detail_grid_columns, current_page, rows_per_page, total_entries)
+	end
+
 	private
 	
 	# Convert the given columns and their values into SQL search terms while
-	# protecting agains SQL injection.
+	# protecting agains SQL injection.  Use LIKE in general but for an id field
+	# this doesn't make sense so force an exact match.
 	def filter_by_conditions (filter_columns)
-		query = filter_columns.keys.map {|c| "#{c} LIKE ?"}.join(' AND ')
-		data = filter_columns.keys.map {|c| "%#{filter_columns[c]}%"}
+		query = filter_columns.keys.map {|c| c =~ /id$/ ? "#{c} = ?" : "#{c} LIKE ?"}.join(' AND ')
+		data = filter_columns.keys.map {|c|  c =~ /id$/ ? "#{filter_columns[c]}" : "%#{filter_columns[c]}%"}
 		[query] + data
 	end
 
