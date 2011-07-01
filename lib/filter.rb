@@ -43,7 +43,7 @@ module JqgridFilter
 															current_page, rows_per_page)
 		end
 		
-		jqgrid_json(grid_records, detail_grid_columns, current_page, rows_per_page, total_entries)
+		jqgrid_json(grid_records, grid_columns, current_page, rows_per_page, total_entries)
 	end	
 
 	# records may be an array of active records or an array of hashes (one entry per column)
@@ -77,15 +77,10 @@ module JqgridFilter
 			# make search true in case it isn't and as the foreign_id_attribute isn't likely to be one of the grid columns add in in temporarily.
 			params[:_search] = 'true'
 			params[foreign_id_attribute.to_sym] = foreign_id
-			grid_records, total_entries, current_page, rows_per_page = filter_on_params(detail_model_class, detail_grid_columns + [foreign_id_attribute])
+			filter_on_params(detail_model_class, detail_grid_columns + [foreign_id_attribute])
 		else
-			grid_records = []
-			total_entries = 0
-			current_page = params[:page].to_i
-			rows_per_page = params[:rows].to_i
+			jqgrid_json([], detail_grid_columns, params[:page].to_i, params[:rows].to_i, 0)
 		end
-
-		jqgrid_json(grid_records, detail_grid_columns, current_page, rows_per_page, total_entries)
 	end
 
 	private
