@@ -23,13 +23,17 @@ module JqgridView
     end
 
     def jqgrid_javascripts
-      locale = I18n.locale rescue :en
-      javascript_include_tag 'jqgrid/jquery-ui-1.8.custom.min.js',
-        "jqgrid/i18n/grid.locale-#{locale}.js",
-        'jqgrid/jquery.jqGrid.min.js',
-        # Don't know if we need it, if smth not working, just uncomment it
-        #'jqgrid/grid.tbltogrid',
-        :cache => 'jqgrid-js'
+		locale = I18n.locale rescue :en
+      	javascript_include_tag 'jqgrid/jquery-ui-1.8.custom.min.js'
+ 	  	javascript_include_tag "jqgrid/i18n/grid.locale-#{locale}.js"
+
+		# Try and use the source version instead of the minified version.  Rails 3.1.0 will
+		# minify it in production automatically.
+		begin
+			javascript_include_tag 'jqgrid/jquery.jqGrid.src.js'
+		rescue
+			javascript_include_tag 'jqgrid/jquery.jqGrid.min.js'			
+		end
     end
 
 	@@app_grid_options = {}
@@ -57,7 +61,7 @@ module JqgridView
 			# http://www.trirand.net/documentation/php/_2v70waupp.htm
          	:search				 => {:searchOnEnter => false},
 
-			:url				 => "#{url}?q=1",
+			:url				 => "#{url}?",
 			:caption			 => caption,
 			:datatype			 => :json,
 
@@ -70,13 +74,21 @@ module JqgridView
 			:delete              => false,
 			:view                => false,          
 			:edit_options 		=> {:closeOnEscape => true, :modal => true, :recreateForm => true, :width => 300, :closeAfterEdit => true,
-										:afterSubmit => Javascript.new("function(r,data) {return ERROR_HANDLER_NAME(r,data,'edit')}")},
+										:mtype => 'PUT', 
+										:serializeEditData => Javascript.new("function(data) {delete data.oper;	return data;}"),
+										:afterSubmit => Javascript.new("function(r,data) {return ERROR_HANDLER_NAME(r,data,'edit')}"),
+										:onclickSubmit => Javascript.new("function(params, postdata) {params.url = '#{url}/' + postdata.#{id}_id}")},
 
 			:add_options 		=> {:closeOnEscape => true, :modal => true, :recreateForm => true, :width => 300, :closeAfterAdd => true,
+										:mtype => 'POST', 										
 										:afterSubmit => Javascript.new("function(r,data) {return ERROR_HANDLER_NAME(r,data,'add')}")},
 
-			:delete_options 	=> {:closeOnEscape => true, :modal => true},
+			:delete_options 	=> {:closeOnEscape => true, :modal => true, :mtype => 'DELETE',
+										:serializeDelData => Javascript.new("function() {return ''}"),
+										:onclickSubmit =>  Javascript.new("function(params, postdata) {params.url = '#{url}/' + postdata}")},
 
+			:ajaxRowOptions => {:type => 'PUT' },
+			:serializeRowData =>  Javascript.new("function(data) {delete data.oper; return data}"),
 
 			:height				=> 500,
 			:resizable			=> true,
@@ -105,7 +117,7 @@ module JqgridView
 		selection_options(:selection, :selection_handler)
 		error_handler_options (:error_handler)
 		pager_options(:pager)	
-		inline_edit
+		inline_edit(url)
  		master_details
 		navigator_options
  		search_options(:search)
@@ -127,7 +139,7 @@ module JqgridView
 
 				#{grid_methods}
 			})
-		</script>
+			</script>
 
 		<div id='flash_alert' style='display:none;padding:0.7em;' class='ui-state-highlight ui-corner-all'></div>
 		<table id='#{@id}' class='scroll' cellpadding='0' cellspacing='0'></table>
@@ -240,7 +252,7 @@ module JqgridView
 	# are made visible.  Note if the edit changes the sorting order or filtered selection then this will not be 
 	# shown - this could be fixed by reloading the grid, but this then looses the row highlight and it is problematic
 	# to re-establish it again as the row may not be visible if the sort order changed or the row is filtered out.
-	def inline_edit
+	def inline_edit (url)
 		if @grid_options[:edit_method] == :inline
 			# The code is passed in as a option so must not be converted into a quoted string when
 			# converted to json.  After the edit is completed the row is selected again.
@@ -251,7 +263,7 @@ module JqgridView
 	            	jQuery('##{@id}').restoreRow(lastsel)
 				}
             	lastedit = id
-            	jQuery('##{@id}').editRow(id, true, null, #{@error_handler_name}, null, null, 
+            	jQuery('##{@id}').editRow(id, true, null, #{@error_handler_name}, '#{url}/' + id , null, 
 					function(id, resp) {
 						var response = JSON.parse (resp.responseText)
 						jQuery('##{@id}').setRowData(lastedit, response[2])
@@ -288,14 +300,14 @@ module JqgridView
 							ids = 0; 
 							if (jQuery ("##{detail[:grid_id]}").getGridParam('records') > 0) 
 							{ 
-								jQuery ("##{detail[:grid_id]}").setGridParam({url:"#{detail[:url]}?q=1&id="+ids,page:1})
+								jQuery ("##{detail[:grid_id]}").setGridParam({url:"#{detail[:url]}?&id="+ids,page:1})
 								.setCaption ("#{detail[:caption]}: "+ids)
 								.trigger('reloadGrid'); 
 							} 
 						} 
 						else 
 						{ 
-							jQuery("##{detail[:grid_id]}").setGridParam({url:"#{detail[:url]}?q=1&id="+ids,page:1})
+							jQuery("##{detail[:grid_id]}").setGridParam({url:"#{detail[:url]}?&id="+ids,page:1})
 								.setCaption("#{detail[:caption]} : "+ ids)
 								.trigger('reloadGrid'); 
 						}
