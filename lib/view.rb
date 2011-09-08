@@ -1,3 +1,13 @@
+# From https://gist.github.com/6391
+class Hash
+	def rmerge (other_hash)
+    	r = {}
+		merge(other_hash) do |key, oldval, newval|
+			r[key] = oldval.class == self.class ? oldval.rmerge(newval) : newval
+		end
+	end
+end
+
 module JqgridView
 
 	private
@@ -16,25 +26,27 @@ module JqgridView
 		end
 	end
 
-  	def jqgrid_stylesheets(theme="default")
+  	def jqgrid_stylesheets(theme = "default")
       stylesheet_link_tag "jqgrid/themes/#{theme}/jquery-ui-1.8.custom.css", 
         'jqgrid/ui.jqgrid.css', 
         :cache => "jqgrid-#{theme}-css"
     end
 
-    def jqgrid_javascripts
-		locale = I18n.locale rescue :en
-      	javascript_include_tag 'jqgrid/jquery-ui-1.8.custom.min.js'
- 	  	javascript_include_tag "jqgrid/i18n/grid.locale-#{locale}.js"
-
+	def jqgrid_javascripts
 		# Try and use the source version instead of the minified version.  Rails 3.1.0 will
-		# minify it in production automatically.
-		begin
-			javascript_include_tag 'jqgrid/jquery.jqGrid.src.js'
-		rescue
-			javascript_include_tag 'jqgrid/jquery.jqGrid.min.js'			
+		# minify it in production automatically (assuming you are using the asset pipeline).
+		if Rails::VERSION::MAJOR >= 3 && Rails::VERSION::MINOR >= 1
+			jqgrid_js = 'jqgrid/jquery.jqGrid.src.js'
+		else
+			jqgrid_js = 'jqgrid/jquery.jqGrid.min.js'
 		end
-    end
+
+		locale = I18n.locale rescue :en
+		javascript_include_tag  'jqgrid/jquery-ui-1.8.custom.min.js',
+        						"jqgrid/i18n/grid.locale-#{locale}.js",
+								jqgrid_js,
+		        				:cache => 'jqgrid-js'
+	end
 
 	@@app_grid_options = {}
 	def self.jqgrid_app_grid_options (options)
@@ -45,6 +57,7 @@ module JqgridView
 	def self.jqgrid_app_pager_options (options)
 		@@app_pager_options = options
 	end
+	
 	
 	# http://www.trirand.com/jqgridwiki/doku.php?id=wiki:options 
 	def jqgrid (caption, id, url, columns = [], options = {})
@@ -61,7 +74,7 @@ module JqgridView
 			# http://www.trirand.net/documentation/php/_2v70waupp.htm
          	:search				 => {:searchOnEnter => false},
 
-			:url				 => "#{url}?",
+			:url				 => "#{url}?q=1",
 			:caption			 => caption,
 			:datatype			 => :json,
 
@@ -102,11 +115,11 @@ module JqgridView
 
 			:rowlist             => [10,25,50,100],				# not the jqgrid default ???
 			:context_menu        => false,
-        }.merge(options)
+        }
 
 		# Combine all options with default having the lowest priority, then any app level options and finally view specific
 		# options.
- 		@grid_options = default_options.merge(@@app_grid_options).merge(options)
+ 		@grid_options = default_options.rmerge(@@app_grid_options).rmerge(options)
   		@grid_methods = []
 		@grid_events = {}
 		
