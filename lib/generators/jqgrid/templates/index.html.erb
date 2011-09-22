@@ -1,16 +1,16 @@
-<%%=raw jqgrid("<%= plural_name.capitalize %> Listing ", "<%= plural_name %>", "/<%= plural_name %>", 
+<%%=raw jqgrid("<%= grid.resource_name.humanize %> Listing ", "<%= grid.class_name %>", "/<%= grid.resource_name %>", 
 [ 
-	<% columns.each_with_index do |attribute, i|-%> 
-		{ :name => "<%= attribute %>", :label => "<%= attribute %>" }<% if i < columns.size - 1 -%>,<% end %> 
+	<% grid.columns.each_with_index do |attribute, i| %> 
+		{ :name => "<%= attribute %>", :label => "<%= attribute %>" }<% if i < grid.columns.size - 1 %>,<% end %> 
 	<% end -%> 
 ], 
 {
-	:autowidth => true, :editurl => "/<%= plural_name %>/post_data",
+	:autowidth => true,
 	
-	<% if !details.empty? %>
+	<% if grids.length > 1 %>
 	:master_details => [
-		<% details.each do |detail| %>
-		{:url => "/<%= plural_name %>/<%=detail.model.downcase%>_details", :grid_id => "<%=detail.model.downcase%>_details", :caption => "<%=detail.model%> details for id: "},
+		<% grids[1..-1].each do |detail| %>
+		{:grid_id => "<%=detail.class_name%>", :caption => "<%=detail.model_name.humanize%> details for id: ", :foreign_key_column => "<%=detail.foreign_key%>"},
 		<% end %>
 	]
 	<% end %>
@@ -18,18 +18,18 @@
 ) %>
 
 
-<% if !details.empty? %>
-	<% details.each do |detail| %>
+<% if grids.length > 1 %>
+	<% grids[1..-1].each do |detail| %>
 	<br>
 	<br>
-	<%%=raw jqgrid("<%= detail.model %> Listing ", "<%=detail.model.downcase%>_details", "/<%= plural_name%>/<%=detail.model.downcase%>_details", 
+	<%%=raw jqgrid("<%= detail.resource_name.humanize %> Listing ", "<%=detail.class_name%>", "/<%= detail.resource_name %>", 
 	[ 
 		<% detail.columns.each_with_index do |attribute, i|-%> 
-			{ :name => "<%= attribute %>", :label => "<%= attribute %>" }<% if i < columns.size - 1 -%>,<% end %> 
+			{ :name => "<%= attribute %>", :label => "<%= attribute %>" }<% if i < detail.columns.size - 1 -%>,<% end %> 
 		<% end -%> 
 	], 
 	{
-		:autowidth => true, :editurl => "/<%= plural_name %>/<%=detail.model.downcase%>_post_data"
+		:autowidth => true
 	} 
 	) %>
 	<% end %>

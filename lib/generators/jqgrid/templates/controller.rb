@@ -1,54 +1,39 @@
-class <%= class_name.pluralize %>Controller < ApplicationController
+class <%= grid.class_name %>Controller < ApplicationController
 	respond_to :html,:json
   
 	# Don't forget to edit routes.  :create, :update, :destroy should only be
 	# present if your jqgrid has add, edit and del actions defined for it.
 	# 
-	#resources :<%=plural_name%>,:only => [:index, :create, :update, :destroy] do
-	#	collection do
-	#	  post "post_data"
-<%=details.map {|detail| "\t#     post \"#{detail.model.downcase}_post_data\""}.join("\n")%>
-<%=details.map {|detail| "\t#     get \"#{detail.model.downcase}_details\""}.join("\n")%>
-	#	end
-	# end
+	# resources :<%=grid.resource_name%>, :only => [:index, :create, :update, :destroy]
 
-	GRID_COLUMNS = %w{<%= columns.map {|x| "#{x}"}.join(' ') %>}
+	GRID_COLUMNS = %w{<%= grid.columns.map {|x| "#{x}"}.join(' ') %>}
 	
 	def index
 		respond_with() do |format|
-			format.json { render :json => filter_on_params(<%=class_name%>, GRID_COLUMNS)}  
+			<% if grid.detail_grid %>
+			format.json {render :json => filter_details(<%=grid.model_name%>, GRID_COLUMNS)}  
+			<% else %>
+			format.json {render :json => filter_on_params(<%=grid.model_name%>, GRID_COLUMNS)}  
+			<% end %>
 		end
 	end
 
- 	# PUT /<%=class_name.downcase%>/1
+ 	# PUT /<%=grid.resource_name%>/1
 	def update
-		grid_edit(<%=class_name%>, GRID_COLUMNS)
+		grid_edit(<%=grid.model_name%>, GRID_COLUMNS)
 	end
 	
-	# DELETE /<%=class_name.downcase%>/1
+	# DELETE /<%=grid.resource_name%>/1
 	def destroy
-		grid_del(<%=class_name%>, GRID_COLUMNS)
+		grid_del(<%=grid.model_name%>, GRID_COLUMNS)
 	end
  
-	# POST /<%=class_name.downcase%>
+	# POST /<%=grid.resource_name%>
 	def create
-		grid_add(<%=class_name%>, GRID_COLUMNS)
+		<% if grid.detail_grid %>
+		grid_add(<%=grid.model_name%>, GRID_COLUMNS + ['<%=grid.foreign_key%>'])
+		<% else %>
+		grid_add(<%=grid.model_name%>, GRID_COLUMNS)
+		<% end %>
 	end
-
-	
-	<% details.each do |detail| %>
-	<%=detail.model.upcase%>_GRID_COLUMNS = %w{<%= detail.columns.map {|x| "#{x}"}.join(' ') %>}
-
-	def <%=detail.model.downcase%>_post_data
-		grid_add_edit_del(<%=detail.model%>, <%=detail.model.upcase%>_GRID_COLUMNS)
-	end
-
-	def <%=detail.model.downcase%>_details
-		respond_with() do |format|
-			format.json { render :json => filter_details(<%=class_name%>, '<%=detail.foreign_key%>', <%=detail.model%>, <%=detail.model.upcase%>_GRID_COLUMNS)}  
-		end
-	end
-	
-	
-	<% end %>
 end
