@@ -65,24 +65,24 @@ module JqgridFilter
 	end
 
 
-	def filter_details (model_class, foreign_id_attribute, detail_model_class, detail_grid_columns)
-		if params[:id].present?
-			# Find the foreign key the currently selected row will use to access in the detail model.  This may be the id of the detail model or be
-			# the foreign key we need to search on.  If the foreign key name matches up with the detail model class (relying on Rail's conventions)
-			# then convert it to an id.
-			foreign_id = get_column_value(model_class.find(params.delete(:id)), foreign_id_attribute)
-			foreign_id_attribute = 'id' if foreign_id_attribute =~ Regexp.new("^#{detail_model_class}", Regexp::IGNORECASE)
-
+	def filter_details (model_class, grid_columns)
+		if params[:foreign_id_attribute].present?
+			foreign_id_attribute = params.delete(:foreign_id_attribute)
+			
+			# If the foreign key name matches up with the model class (relying on Rail's conventions)
+			# then convert it to an id.			
+			foreign_id_attribute = 'id' if foreign_id_attribute =~ Regexp.new("^#{model_class}", Regexp::IGNORECASE)
+			
 			# We want to use the filter_on_params method so we get all the special filtering and sorting capabilities in detail grids as well so
 			# make search true in case it isn't and as the foreign_id_attribute isn't likely to be one of the grid columns add in in temporarily.
 			params[:_search] = 'true'
-			params[foreign_id_attribute.to_sym] = foreign_id
-			filter_on_params(detail_model_class, detail_grid_columns + [foreign_id_attribute])
+			params[foreign_id_attribute.to_sym] = params.delete(:foreign_id)
+			filter_on_params(model_class, grid_columns + [foreign_id_attribute])
 		else
-			jqgrid_json([], detail_grid_columns, params[:page].to_i, params[:rows].to_i, 0)
+			jqgrid_json([], grid_columns, params[:page].to_i, params[:rows].to_i, 0)
 		end
 	end
-
+	
 	private
 	
 	# Convert the given columns and their values into SQL search terms while

@@ -35,7 +35,7 @@ module JqgridView
 	def jqgrid_javascripts
 		# Try and use the source version instead of the minified version.  Rails 3.1.0 will
 		# minify it in production automatically (assuming you are using the asset pipeline).
-		if Rails::VERSION::MAJOR >= 3 && Rails::VERSION::MINOR >= 1
+		if true || Rails::VERSION::MAJOR >= 3 && Rails::VERSION::MINOR >= 1			####################################
 			jqgrid_js = 'jqgrid/jquery.jqGrid.src.js'
 		else
 			jqgrid_js = 'jqgrid/jquery.jqGrid.min.js'
@@ -74,7 +74,8 @@ module JqgridView
 			# http://www.trirand.net/documentation/php/_2v70waupp.htm
          	:search				 => {:searchOnEnter => false},
 
-			:url				 => "#{url}?q=1",
+			:url				 => "#{url}?",
+			:editurl			 => "#{url}",
 			:caption			 => caption,
 			:datatype			 => :json,
 
@@ -88,13 +89,20 @@ module JqgridView
 			:view                => false,          
 			:edit_options 		=> {:closeOnEscape => true, :modal => true, :recreateForm => true, :width => 300, :closeAfterEdit => true,
 										:mtype => 'PUT', 
-										:serializeEditData => Javascript.new("function(data) {delete data.oper;	return data;}"),
-										:afterSubmit => Javascript.new("function(r,data) {return ERROR_HANDLER_NAME(r,data,'edit')}"),
-										:onclickSubmit => Javascript.new("function(params, postdata) {params.url = '#{url}/' + postdata.#{id}_id}")},
+										:onclickSubmit => Javascript.new("function(params, postdata) {params.url = '#{url}/' + postdata.#{id}_id}"),
+										:afterSubmit => Javascript.new("function(r, data) {return ERROR_HANDLER_NAME(r,data,'edit')}")},
 
 			:add_options 		=> {:closeOnEscape => true, :modal => true, :recreateForm => true, :width => 300, :closeAfterAdd => true,
 										:mtype => 'POST', 										
-										:afterSubmit => Javascript.new("function(r,data) {return ERROR_HANDLER_NAME(r,data,'add')}")},
+										# If the foreign_id is defined for this grid then this grid is a detail grid and in order to add a
+										# new entry to it we need to provide the foreign key attribute name and its value.  For a master grid
+										# or when no detail grid exists then this is effectively ignored.
+										:onclickSubmit => Javascript.new("function(params, postdata) 
+																			{
+																				if (typeof #{id}_foreign_id_attribute == 'string')
+																					postdata[#{id}_foreign_id_attribute] = #{id}_foreign_id	
+																			}"),
+										:afterSubmit => Javascript.new("function(r, data) {return ERROR_HANDLER_NAME(r,data,'add')}")},
 
 			:delete_options 	=> {:closeOnEscape => true, :modal => true, :mtype => 'DELETE',
 										:serializeDelData => Javascript.new("function() {return ''}"),
@@ -122,6 +130,7 @@ module JqgridView
  		@grid_options = default_options.rmerge(@@app_grid_options).rmerge(options)
   		@grid_methods = []
 		@grid_events = {}
+		@grid_globals = []
 		
     	# Take out the higher level options and convert to options and jqgrid methods.		
 		
@@ -143,7 +152,8 @@ module JqgridView
 		
     	# Generate required Javascript & html to create the jqgrid
 		"<script type = 'text/javascript'>
-			var lastsel, lastedit;
+			#{grid_globals}
+
 			jQuery(document).ready(function()
 			{
 				jQuery('##{@id}').jqGrid({
@@ -175,6 +185,10 @@ module JqgridView
 	
 	def grid_methods
 		@grid_methods.join("\n")
+	end
+
+	def grid_globals
+		@grid_globals.join("\n")
 	end
 
 	# We may add more than one function to be triggered on an event.
@@ -269,6 +283,7 @@ module JqgridView
 		if @grid_options[:edit_method] == :inline
 			# The code is passed in as a option so must not be converted into a quoted string when
 			# converted to json.  After the edit is completed the row is selected again.
+			@grid_globals << "var lastsel, lastedit"		
 			add_event :ondblClickRow, Javascript.new(
 			%Q^function(id){
 	        	if (id && id !== lastedit)
@@ -299,35 +314,31 @@ module JqgridView
 
 		# The options hash key is now :master_details and the value for this key is either a hash (for a single detail) 
 		# or an array of hashes (for multiple details).  A detail hash has the following keys	
-		#     :grid_id		the id of the grid to use to display the detail view
-		#     :url			the url string to a access the detail attributes
-		#     :caption		caption string
+		#     :grid_id				the id of the grid to use to display the detail view
+		#     :foreign_key_column	the column in the master table holding the foreign key
+		#     :caption				caption string
+
+
+# Problems still to fix:
+#   Display of error validation error messages
 		def master_details
 		if details = @grid_options.delete(:master_details)
 			details = [details] if details.kind_of? Hash
 			details.each do |detail|
+				# Make details of the foreign key available as globals so an add on a detail grid can use them.
+				@grid_globals << "var #{detail[:grid_id]}_foreign_id_attribute"
+				@grid_globals << "var #{detail[:grid_id]}_foreign_id"
 				add_event :onSelectRow, Javascript.new(
-					%Q^function(ids) { 
-						if (ids == null) 
-						{ 
-							ids = 0; 
-							if (jQuery ("##{detail[:grid_id]}").getGridParam('records') > 0) 
-							{ 
-								jQuery ("##{detail[:grid_id]}").setGridParam({url:"#{detail[:url]}?&id="+ids,page:1})
-								.setCaption ("#{detail[:caption]}: "+ids)
-								.trigger('reloadGrid'); 
-							} 
-						} 
-						else 
-						{ 
-							jQuery("##{detail[:grid_id]}").setGridParam({url:"#{detail[:url]}?&id="+ids,page:1})
-								.setCaption("#{detail[:caption]} : "+ ids)
-								.trigger('reloadGrid'); 
-						}
+					%Q^
+					function(ids) { 
+							#{detail[:grid_id]}_foreign_id_attribute = '#{detail[:foreign_key_column]}'
+							#{detail[:grid_id]}_foreign_id = jQuery('##{@id}').getRowData (ids)['#{detail[:foreign_key_column]}']
+							jQuery("##{detail[:grid_id]}").setGridParam({postData: {foreign_id_attribute: '#{detail[:foreign_key_column]}', foreign_id: #{detail[:grid_id]}_foreign_id}})
+								.setCaption("#{detail[:caption]} : "+ #{detail[:grid_id]}_foreign_id)
+								.trigger('reloadGrid'); 							
 					}^
 				)
 			end
-
 		end
 	end
 	
