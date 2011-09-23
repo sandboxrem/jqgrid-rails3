@@ -35,14 +35,14 @@ module JqgridView
 	def jqgrid_javascripts
 		# Try and use the source version instead of the minified version.  Rails 3.1.0 will
 		# minify it in production automatically (assuming you are using the asset pipeline).
-		if true || Rails::VERSION::MAJOR >= 3 && Rails::VERSION::MINOR >= 1			####################################
+		if Rails::VERSION::MAJOR >= 3 && Rails::VERSION::MINOR >= 1
 			jqgrid_js = 'jqgrid/jquery.jqGrid.src.js'
 		else
 			jqgrid_js = 'jqgrid/jquery.jqGrid.min.js'
 		end
 
 		locale = I18n.locale rescue :en
-		javascript_include_tag  'jqgrid/jquery-ui-1.8.custom.min.js',
+		javascript_include_tag  'jqgrid/jquery-ui-1.8.custom.min.js',		# still needed for Rails 3.1???
         						"jqgrid/i18n/grid.locale-#{locale}.js",
 								jqgrid_js,
 		        				:cache => 'jqgrid-js'
