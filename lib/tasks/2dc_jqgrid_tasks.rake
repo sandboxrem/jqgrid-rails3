@@ -25,7 +25,7 @@ namespace :jqgrid do
 		target = File.join(target_dir, 'javascripts', 'jqgrid')
 		# For rails >3.1.0 jquery already installed and copy jqgrid source instead of minified version.
 		if rails_version_ge_3_1
-			FileUtils.copy_entry(File.join(source, 'jquery.jqGrid.src.js'), target, :verbose => true)
+			FileUtils.copy(File.join(source, 'jquery.jqGrid.src.js'), target, :verbose => true)
 		else
 			files = Dir.glob(File.join(source, '*.min.js'))
 			files.each {|f| FileUtils.copy(f, target, :verbose => true)}
