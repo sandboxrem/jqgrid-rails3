@@ -27,9 +27,11 @@ module JqgridView
 	end
 
   	def jqgrid_stylesheets(theme = "default")
-      stylesheet_link_tag "jqgrid/themes/#{theme}/jquery-ui-1.8.custom.css", 
-        'jqgrid/ui.jqgrid.css', 
-        :cache => "jqgrid-#{theme}-css"
+      stylesheet_link_tag 	"jqgrid/themes/#{theme}/jquery-ui-1.8.custom.css", 
+        					'jqgrid/ui.jqgrid.css', 
+        					'jqgrid/ui.jqgrid.css', 
+							'jqgrid/ui.multiselect.css',
+        					:cache => "jqgrid-#{theme}-css"
     end
 
 	def jqgrid_javascripts
@@ -43,7 +45,8 @@ module JqgridView
 
 		locale = I18n.locale rescue :en
 		javascript_include_tag  'jqgrid/jquery-ui-1.8.custom.min.js',		# still needed for Rails 3.1???
-        						"jqgrid/i18n/grid.locale-#{locale}.js",
+								'jqgrid/ui.multiselect.js', 
+       							"jqgrid/i18n/grid.locale-#{locale}.js",
 								jqgrid_js,
 		        				:cache => 'jqgrid-js'
 	end
@@ -123,6 +126,7 @@ module JqgridView
 
 			:rowlist             => [10,25,50,100],				# not the jqgrid default ???
 			:context_menu        => false,
+			:column_chooser		 => false,
         }
 
 		# Combine all options with default having the lowest priority, then any app level options and finally view specific
@@ -144,6 +148,7 @@ module JqgridView
 		navigator_options
  		search_options(:search)
 		resizable
+		column_chooser
 		
 		# Generate columns data
 		gen_columns(columns)
@@ -446,6 +451,17 @@ module JqgridView
 		^
 
 		@grid_methods << js.gsub(/ERROR_HANDLER_NAME/, "#{@error_handler_name}") 
+	end
+	
+	def column_chooser
+		if @grid_options[:column_chooser]
+			@grid_methods <<
+	        %Q^
+			jQuery("##{@id}").navButtonAdd("##{@id}_pager", {
+	    		caption: "Columns", title: "Reorder Columns",
+	    		onClickButton: function (){jQuery("##{@id}").jqGrid('columnChooser')}})
+			^
+		end
 	end
 	
     # Recalculate width of grid based on parent container.
