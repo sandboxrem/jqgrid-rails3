@@ -29,26 +29,27 @@ module JqgridView
   	def jqgrid_stylesheets(theme = "default")
       stylesheet_link_tag 	"jqgrid/themes/#{theme}/jquery-ui-1.8.custom.css", 
         					'jqgrid/ui.jqgrid.css', 
-        					'jqgrid/ui.jqgrid.css', 
 							'jqgrid/ui.multiselect.css',
         					:cache => "jqgrid-#{theme}-css"
     end
 
 	def jqgrid_javascripts
+		locale = I18n.locale rescue :en
+
 		# Try and use the source version instead of the minified version.  Rails 3.1.0 will
 		# minify it in production automatically (assuming you are using the asset pipeline).
 		if Rails::VERSION::MAJOR >= 3 && Rails::VERSION::MINOR >= 1
-			jqgrid_js = 'jqgrid/jquery.jqGrid.src.js'
+			javascript_include_tag 	"jqgrid/i18n/grid.locale-#{locale}.js",
+									'jqgrid/ui.multiselect.js', 
+									'jqgrid/jquery.jqGrid.src.js',
+			        				:cache => 'jqgrid-js'
 		else
-			jqgrid_js = 'jqgrid/jquery.jqGrid.min.js'
+			javascript_include_tag  'jqgrid/jquery-ui-1.8.custom.min.js',
+									"jqgrid/i18n/grid.locale-#{locale}.js",
+									'jqgrid/ui.multiselect.js', 
+									'jqgrid/jquery.jqGrid.min.js',
+			        				:cache => 'jqgrid-js'
 		end
-
-		locale = I18n.locale rescue :en
-		javascript_include_tag  'jqgrid/jquery-ui-1.8.custom.min.js',		# still needed for Rails 3.1???
-								'jqgrid/ui.multiselect.js', 
-       							"jqgrid/i18n/grid.locale-#{locale}.js",
-								jqgrid_js,
-		        				:cache => 'jqgrid-js'
 	end
 
 	@@app_grid_options = {}
