@@ -6,7 +6,7 @@ namespace :jqgrid do
 		target_dir = File.join(Rails.root, 'public')			# rails < 3.1.0
 	end
 
-	desc "Copy javascripts, stylesheets and images to public or assets (rails >=3.1)"
+	desc "Copy javascripts, stylesheets and images to public or vendor/assets (rails >=3.1)"
 	task :install do
 		Rake::Task[ "jqgrid:uninstall" ].execute
 
@@ -27,6 +27,23 @@ namespace :jqgrid do
 		if rails_version_ge_3_1
 			FileUtils.copy(File.join(source, 'jquery.jqGrid.src.js'), target, :verbose => true)
 			FileUtils.copy(File.join(source, 'ui.multiselect.js'), target, :verbose => true)
+
+			# Need to add jquery-ui to application.js if it is not already present.
+			js_file = File.join(Rails.root, 'app', 'assets', 'javascripts', 'application.js')
+			if File.exist?(js_file)
+				js_text = File.read(js_file)
+				if js_text !~ /\/\/= require jquery-ui/
+					if js_text =~ /\/\/= require jquery\n/
+						puts "Adding //= require jquery-ui to application.js"
+						js_text.sub!(/\/\/= require jquery\n/, "//= require jquery\n//= require jquery-ui\n")
+						File.open(js_file, "w") {|f| f.write(js_text)}
+					else
+						raise "Rails >=3.1 detected but missing '//= require jquery' line from application.js file"
+					end
+				end
+			else
+				raise "Rails >=3.1 detected but missing application.js file"
+			end
 		else
 			files = Dir.glob(File.join(source, '*.min.js'))
 			files.each {|f| FileUtils.copy(f, target, :verbose => true)}
@@ -34,7 +51,7 @@ namespace :jqgrid do
 		end
 	end
 
-	desc 'Remove javascripts, stylesheets and images from public or assets (rails >=3.1)'
+	desc 'Remove javascripts, stylesheets and images from public or vendor/assets (rails >=3.1)'
 	task :uninstall do
 		%w(javascripts stylesheets).each do |dir|
 			target = File.join(target_dir, dir, 'jqgrid')
