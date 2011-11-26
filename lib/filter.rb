@@ -253,10 +253,11 @@ module JqgridFilter
 						  "\r\n"  => '\n',
 						  "\n"	  => '\n',
 						  "\r"	  => '\n',
+						  "\v"	  => '\n',
 						  '"'	  => '\\"' }
 
 	def escape_json(json)
-		json ? json.gsub(/(\\|<\/|\r\n|[\n\r"])/) { JSON_ESCAPE_MAP[$1] } : ''
+		json ? json.gsub(/(\\|<\/|\r\n|[\n\r"\v])/) { JSON_ESCAPE_MAP[$1] } : ''
 	end
 
 	def get_column_value(record, column)
