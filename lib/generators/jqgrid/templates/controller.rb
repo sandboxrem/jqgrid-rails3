@@ -6,34 +6,24 @@ class <%= grid.class_name %>Controller < ApplicationController
 	# 
 	# resources :<%=grid.resource_name%>, :only => [:index, :create, :update, :destroy]
 
-	GRID_COLUMNS = %w{<%= grid.columns.map {|x| "#{x}"}.join(' ') %>}
-	
 	def index
 		respond_with() do |format|
-			<% if grid.detail_grid %>
-			format.json {render :json => filter_details(<%=grid.model_name%>, GRID_COLUMNS)}  
-			<% else %>
-			format.json {render :json => filter_on_params(<%=grid.model_name%>, GRID_COLUMNS)}  
-			<% end %>
+			format.json {render :json => filter_on_params(<%=grid.model_name%>)}  
 		end
 	end
 
  	# PUT /<%=grid.resource_name%>/1
 	def update
-		grid_edit(<%=grid.model_name%>, GRID_COLUMNS)
+		grid_edit(<%=grid.model_name%>)
 	end
 	
 	# DELETE /<%=grid.resource_name%>/1
 	def destroy
-		grid_del(<%=grid.model_name%>, GRID_COLUMNS)
+		grid_del(<%=grid.model_name%>)
 	end
  
 	# POST /<%=grid.resource_name%>
 	def create
-		<% if grid.detail_grid %>
-		grid_add(<%=grid.model_name%>, GRID_COLUMNS + ['<%=grid.foreign_key%>'])
-		<% else %>
-		grid_add(<%=grid.model_name%>, GRID_COLUMNS)
-		<% end %>
+		grid_add(<%=grid.model_name%>)
 	end
 end

@@ -70,7 +70,7 @@ class JqgridGenerator < Rails::Generators::NamedBase
 			if i == 0
 				@grids[i] = Grid.new(g[0], g[0], nil, g[1..-1], false)
 			else
-				@grids[i] = Grid.new(g[0], g[1], g[2], g[3..-1], true)
+				@grids[i] = Grid.new(g[0], g[0], g[1], g[2..-1], true)
 			end
 		end
 		puts @grids.inspect		

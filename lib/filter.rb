@@ -1,6 +1,28 @@
 module JqgridFilter
 
-	def filter_on_params (model_class, grid_columns)
+	def filter_on_params (model_class)
+ 		grid_columns = params[:grid_columns]
+
+		# Are we a detail grid?  If so search on the foreign attribute.
+		if params.delete(:slave_detail)
+			foreign_id_attribute = params.delete(:foreign_id_attribute)
+			
+			if !foreign_id_attribute
+				# No row on the master grid has been selected so don't know what to fetch for the slave grid.
+				return jqgrid_json([], grid_columns, params[:page].to_i, params[:rows].to_i, 0)
+			end 
+			
+			# If the foreign key name matches up with the model class (relying on Rail's conventions)
+			# then convert it to an id.			
+			foreign_id_attribute = 'id' if foreign_id_attribute =~ Regexp.new("^#{model_class}", Regexp::IGNORECASE)
+			
+			# We want  all the special filtering and sorting capabilities in detail grids as well so
+			# make search true in case it isn't and as the foreign_id_attribute isn't likely to be one of the grid columns add in in temporarily.
+			params[:_search] = 'true'
+			params[foreign_id_attribute.to_sym] = params.delete(:foreign_id)
+			grid_columns << foreign_id_attribute
+		end
+		
 		ar_options = {}
 		current_page = params[:page] ? params[:page].to_i : 1
 		rows_per_page = params[:rows] ? params[:rows].to_i : 10
@@ -64,24 +86,6 @@ module JqgridFilter
 		json << "}"
 	end
 
-
-	def filter_details (model_class, grid_columns)
-		if params[:foreign_id_attribute].present?
-			foreign_id_attribute = params.delete(:foreign_id_attribute)
-			
-			# If the foreign key name matches up with the model class (relying on Rail's conventions)
-			# then convert it to an id.			
-			foreign_id_attribute = 'id' if foreign_id_attribute =~ Regexp.new("^#{model_class}", Regexp::IGNORECASE)
-			
-			# We want to use the filter_on_params method so we get all the special filtering and sorting capabilities in detail grids as well so
-			# make search true in case it isn't and as the foreign_id_attribute isn't likely to be one of the grid columns add in in temporarily.
-			params[:_search] = 'true'
-			params[foreign_id_attribute.to_sym] = params.delete(:foreign_id)
-			filter_on_params(model_class, grid_columns + [foreign_id_attribute])
-		else
-			jqgrid_json([], grid_columns, params[:page].to_i, params[:rows].to_i, 0)
-		end
-	end
 	
 	private
 	

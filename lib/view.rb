@@ -66,7 +66,8 @@ module JqgridView
 	# http://www.trirand.com/jqgridwiki/doku.php?id=wiki:options 
 	def jqgrid (caption, id, url, columns = [], options = {})
  		@id = id
-
+		slave_detail = options.delete(:slave_detail)
+		
      	default_options = 
         { 
           	# Can be nil or false to disregard all errors, :default to show the errors or a
@@ -102,7 +103,10 @@ module JqgridView
 										# new entry to it we need to provide the foreign key attribute name and its value.  For a master grid
 										# or when no detail grid exists then this is effectively ignored.
 										:onclickSubmit => Javascript.new("function(params, postdata) 
-																			{
+																			{	
+																				delete postdata.oper
+																				postdata.grid_columns = #{id}_grid_columns
+																				#{slave_detail ? 'postdata.slave_detail = true' : ''}
 																				if (typeof #{id}_foreign_id_attribute == 'string')
 																					postdata[#{id}_foreign_id_attribute] = #{id}_foreign_id	
 																			}"),
@@ -113,7 +117,19 @@ module JqgridView
 										:onclickSubmit =>  Javascript.new("function(params, postdata) {params.url = '#{url}/' + postdata}")},
 
 			:ajaxRowOptions => {:type => 'PUT' },
-			:serializeRowData =>  Javascript.new("function(data) {delete data.oper; return data}"),
+			:serializeRowData =>  Javascript.new("function (data)
+			 										{
+														delete data.oper
+														data.grid_columns = #{id}_grid_columns
+														#{slave_detail ? 'data.slave_detail = true' : ''}
+														return data
+													}"),
+			:serializeGridData =>  Javascript.new("function (data) 
+													{
+														data.grid_columns = #{id}_grid_columns
+														#{slave_detail ? 'data.slave_detail = true' : ''}
+														return data
+													}"),
 
 			:height				=> 500,
 			:resizable			=> true,
@@ -136,6 +152,8 @@ module JqgridView
   		@grid_methods = []
 		@grid_events = {}
 		@grid_globals = []
+
+		@grid_globals << "var #{id}_grid_columns = #{columns.map {|c| c[:name]}.inspect}"
 		
     	# Take out the higher level options and convert to options and jqgrid methods.		
 		

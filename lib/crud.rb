@@ -1,12 +1,14 @@
 module JqgridCRUD
 	private
 	
-	def grid_add (model_class, grid_columns)
+	def grid_add (model_class)
+ 		grid_columns = params[:grid_columns]
 		record = model_class.create(model_params(model_class, grid_columns))
 		grid_response(model_class, record)
 	end
 
-	def grid_edit (model_class, grid_columns)
+	def grid_edit (model_class)
+ 		grid_columns = params[:grid_columns]
 		record = model_class.find(params[:id])
 		record.update_attributes(model_params(model_class, grid_columns))
 
@@ -16,7 +18,8 @@ module JqgridCRUD
 		grid_response(model_class, record, record_data)
 	end
 	
-	def grid_del (model_class, grid_columns)
+	def grid_del (model_class)
+ 		grid_columns = params[:grid_columns]
 		model_class.destroy_all(:id => params[:id].split(","))
 		grid_response(model_class)
 	end
