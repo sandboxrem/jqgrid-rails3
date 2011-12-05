@@ -336,16 +336,14 @@ module JqgridView
 		end
 	end
 
-		# The options hash key is now :master_details and the value for this key is either a hash (for a single detail) 
-		# or an array of hashes (for multiple details).  A detail hash has the following keys	
-		#     :grid_id				the id of the grid to use to display the detail view
-		#     :foreign_key_column	the column in the master table holding the foreign key
-		#     :caption				caption string
+	# The options hash key is now :master_details and the value for this key is either a hash (for a single detail) 
+	# or an array of hashes (for multiple details).  A detail hash has the following keys	
+	#     :grid_id				the id of the grid to use to display the detail view
+	#     :caption				caption string
+	#     :foreign_key_column	the column in the master table holding the foreign key
+	# 	  :detail_foreign_key	the attribute in the detail table to match the master foreign key against (can be omitted if the same)
 
-
-# Problems still to fix:
-#   Display of error validation error messages
-		def master_details
+	def master_details
 		if details = @grid_options.delete(:master_details)
 			details = [details] if details.kind_of? Hash
 			details.each do |detail|
@@ -357,7 +355,7 @@ module JqgridView
 					function(ids) { 
 							#{detail[:grid_id]}_foreign_id_attribute = '#{detail[:foreign_key_column]}'
 							#{detail[:grid_id]}_foreign_id = jQuery('##{@id}').getRowData (ids)['#{detail[:foreign_key_column]}']
-							jQuery("##{detail[:grid_id]}").setGridParam({postData: {foreign_id_attribute: '#{detail[:foreign_key_column]}', foreign_id: #{detail[:grid_id]}_foreign_id}})
+							jQuery("##{detail[:grid_id]}").setGridParam({postData: {foreign_id_attribute: '#{detail[:detail_foreign_key] || detail[:foreign_key_column]}', foreign_id: #{detail[:grid_id]}_foreign_id}})
 								.setCaption("#{detail[:caption]} : "+ #{detail[:grid_id]}_foreign_id)
 								.trigger('reloadGrid'); 							
 					}^
