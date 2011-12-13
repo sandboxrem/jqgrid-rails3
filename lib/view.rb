@@ -360,6 +360,18 @@ module JqgridView
 								.trigger('reloadGrid'); 							
 					}^
 				)
+
+				# Clear the slave detail grid when ever the master detail is reloaded (as nothing should be selected).
+				add_event :loadComplete, Javascript.new(
+					%Q^
+					function(data) { 
+							#{detail[:grid_id]}_foreign_id_attribute = null
+							#{detail[:grid_id]}_foreign_id = null
+							jQuery("##{detail[:grid_id]}").setCaption("#{detail[:caption]} : ")
+								.trigger('reloadGrid'); 							
+					}^
+				
+				)	
 			end
 		end
 	end
