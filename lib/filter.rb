@@ -214,7 +214,7 @@ module JqgridFilter
 	# Get the range of records to show.
 	def paginate_records (records, current_page, rows_per_page)
 		if records.length > rows_per_page
-			start = current_page * rows_per_page
+			start = (current_page - 1) * rows_per_page
 			
 			# Show the last full page if the start position will cause records off the end to be shown.
 			start = records.length - rows_per_page if start + rows_per_page > records.length 
