@@ -1,7 +1,7 @@
 module JqgridFilter
 
-	def filter_on_params (model_class)
- 		grid_columns = params[:grid_columns]
+	def filter_on_params (model_class) 
+		grid_columns = params[:grid_columns]
 
 		# Are we a detail grid?  If so search on the foreign attribute.
 		if params.delete(:slave_detail)
@@ -14,13 +14,15 @@ module JqgridFilter
 			
 			# If the foreign key name matches up with the model class (relying on Rail's conventions)
 			# then convert it to an id.			
-			foreign_id_attribute = 'id' if foreign_id_attribute =~ Regexp.new("^#{model_class}", Regexp::IGNORECASE)
+			foreign_id_attribute = 'id' if foreign_id_attribute =~ Regexp.new("^#{model_class}", Regexp::IGNORECASE)		
 			
 			# We want  all the special filtering and sorting capabilities in detail grids as well so
 			# make search true in case it isn't and as the foreign_id_attribute isn't likely to be one of the grid columns add in in temporarily.
 			params[:_search] = 'true'
 			params[foreign_id_attribute.to_sym] = params.delete(:foreign_id)
-			grid_columns << foreign_id_attribute
+
+			# Remove :id so it doesn't influence the search on the foreign attribute.
+			params.delete(:id)
 		end
 		
 		ar_options = {}
@@ -35,28 +37,26 @@ module JqgridFilter
 		# Analyse the input params to see if any have the special match conditions or are virtual attributes.
 		regular_attribute_params = {}
 		special_attribute_params = {}
-		grid_columns.each do |c|
-			param = params[c]
-			if param
-				if model_class.columns_hash[c.to_s]
-					if special_match_condition?(param)
-						special_attribute_params[c] = param
-					else
-						regular_attribute_params[c] = param
-					end
-				else
+
+		params.each do |c, param|
+			if model_class.columns_hash[c.to_s]
+				if special_match_condition?(param)
 					special_attribute_params[c] = param
+				else
+					regular_attribute_params[c] = param
 				end
+			elsif model_class.method_defined?(c.to_sym) || c.to_s =~ /\./
+				# virtual attribute or attribute references another table
+				special_attribute_params[c] = param	
 			end
 		end
-		
+
 		sort_on_virtual_attribute = !model_class.columns_hash[sort_index.to_s] ? sort_index : false
 
 		if !sort_on_virtual_attribute && special_attribute_params.empty?
 			ar_options[:conditions] = filter_by_conditions(regular_attribute_params) if params[:_search] == "true"
 			ar_options[:page] = current_page
 			ar_options[:per_page] = rows_per_page
-
 			grid_records = model_class.paginate(ar_options)
 			total_entries = grid_records.total_entries
 		else
@@ -75,7 +75,7 @@ module JqgridFilter
 			rows = records.map do |record|
 				record[:id] ||= records.index(record)
 				columns = grid_columns.map do |column|
-					value = record[column] || get_column_value(record, column)
+					value = record[column] || get_attrib_value(record, column)
 					value = escape_json(value) if value && value.kind_of?(String)
 					%Q^"#{value}"^
 				end
@@ -154,10 +154,10 @@ module JqgridFilter
 		end
 	end
 
-	# Convert all column data in each record into a simple hash, keyed with the column's name and
+	# Convert all attribute data in each record into a simple hash, keyed with the attributes's name and
 	# expanded so any virtual attributes or attributes with a path are resolved (so we only do it once).
-	def record_to_hash (record, grid_columns)
-		grid_columns.reduce({}) {|hsh, col| hsh[col] = get_column_value(record, col); hsh}
+	def record_to_hash (record, attribs)
+		attribs.reduce({}) {|hsh, attrib| hsh[attrib] = get_attrib_value(record, attrib); hsh}
 	end
 	
 	# Return the grid records that match the given param for the given col.
@@ -222,7 +222,6 @@ module JqgridFilter
 			# Fewer records than will fit so always show them all.
 			start = 0
 		end
-		
 		records[start, rows_per_page]
 	end
 	
@@ -236,9 +235,10 @@ module JqgridFilter
 			# Cache miss, so do the work...
 			grid_records = get_records(model_class, regular)
 
-			# This is for efficiency reasons.
-			grid_records = grid_records.map {|record| record_to_hash(record, grid_columns)}
-	
+			# This is for efficiency reasons.  Include any special attributes (virtual or path to other table) as they 
+			# may not be in the normal set to be displayed in grid columns.
+			grid_records = grid_records.map {|record| record_to_hash(record, grid_columns + special.keys)}
+
 			# Successively filter based on each condition
 			special.each {|col, param| grid_records = filter_by_param(model_class, grid_records, col, param)}
 			
@@ -248,6 +248,7 @@ module JqgridFilter
 		end
 
 		grid_records = grid_records.reverse if sort_direction != 'asc'
+
 		return paginate_records(grid_records, current_page, rows_per_page), grid_records.length
 	end
 	
@@ -264,8 +265,8 @@ module JqgridFilter
 		json ? json.gsub(/(\\|<\/|\r\n|[\n\r"\v])/) { JSON_ESCAPE_MAP[$1] } : ''
 	end
 
-	def get_column_value(record, column)
-		column.split('.').reduce(record) do |obj, method| 
+	def get_attrib_value(record, attrib)
+		attrib.split('.').reduce(record) do |obj, method| 
 			next_obj = obj.send(method)
 			return '' if !next_obj || next_obj == ''
 			next_obj
