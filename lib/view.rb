@@ -52,6 +52,11 @@ module JqgridView
 		end
 	end
 
+	# View helper to force a grid to be reloaded based on a control changing.
+	def reload_grid (grid_name)
+		"javascript:jQuery('##{grid_name}').trigger('reloadGrid')"
+	end
+	
 	@@app_grid_options = {}
 	def self.jqgrid_app_grid_options (options)
 		@@app_grid_options = options
@@ -66,8 +71,7 @@ module JqgridView
 	# http://www.trirand.com/jqgridwiki/doku.php?id=wiki:options 
 	def jqgrid (caption, id, url, columns = [], options = {})
  		@id = id
-		slave_detail = options.delete(:slave_detail)
-		
+
      	default_options = 
         { 
           	# Can be nil or false to disregard all errors, :default to show the errors or a
@@ -99,17 +103,6 @@ module JqgridView
 
 			:add_options 		=> {:closeOnEscape => true, :modal => true, :recreateForm => true, :width => 300, :closeAfterAdd => true,
 										:mtype => 'POST', 										
-										# If the foreign_id is defined for this grid then this grid is a detail grid and in order to add a
-										# new entry to it we need to provide the foreign key attribute name and its value.  For a master grid
-										# or when no detail grid exists then this is effectively ignored.
-										:onclickSubmit => Javascript.new("function(params, postdata) 
-																			{	
-																				delete postdata.oper
-																				postdata.grid_columns = #{id}_grid_columns
-																				#{slave_detail ? 'postdata.slave_detail = true' : ''}
-																				if (typeof #{id}_foreign_id_attribute == 'string')
-																					postdata[#{id}_foreign_id_attribute] = #{id}_foreign_id	
-																			}"),
 										:afterSubmit => Javascript.new("function(r, data) {return ERROR_HANDLER_NAME(r,data,'add')}")},
 
 			:delete_options 	=> {:closeOnEscape => true, :modal => true, :mtype => 'DELETE',
@@ -117,20 +110,6 @@ module JqgridView
 										:onclickSubmit =>  Javascript.new("function(params, postdata) {params.url = '#{url}/' + postdata}")},
 
 			:ajaxRowOptions => {:type => 'PUT' },
-			:serializeRowData =>  Javascript.new("function (data)
-			 										{
-														delete data.oper
-														data.grid_columns = #{id}_grid_columns
-														#{slave_detail ? 'data.slave_detail = true' : ''}
-														return data
-													}"),
-			:serializeGridData =>  Javascript.new("function (data) 
-													{
-														data.grid_columns = #{id}_grid_columns
-														#{slave_detail ? 'data.slave_detail = true' : ''}
-														return data
-													}"),
-
 			:height				=> 500,
 			:resizable			=> true,
 			
@@ -164,10 +143,12 @@ module JqgridView
 		pager_options(:pager)	
 		inline_edit(url)
  		master_details
+		augment_post_data
 		navigator_options
  		search_options(:search)
 		resizable
 		column_chooser
+		
 		
 		# Generate columns data
 		gen_columns(columns)
@@ -348,30 +329,30 @@ module JqgridView
 			details = [details] if details.kind_of? Hash
 			details.each do |detail|
 				# Make details of the foreign key available as globals so an add on a detail grid can use them.
-				@grid_globals << "var #{detail[:grid_id]}_foreign_id_attribute"
-				@grid_globals << "var #{detail[:grid_id]}_foreign_id"
+				@grid_globals << "var #{detail[:grid_id]}_foreign_id_attribute = null"
+				@grid_globals << "var #{detail[:grid_id]}_foreign_id = null"
 				add_event :onSelectRow, Javascript.new(
 					%Q^
 					function(ids) { 
 							#{detail[:grid_id]}_foreign_id_attribute = '#{detail[:foreign_key_column]}'
 							#{detail[:grid_id]}_foreign_id = jQuery('##{@id}').getRowData (ids)['#{detail[:foreign_key_column]}']
 							jQuery("##{detail[:grid_id]}").setGridParam({postData: {foreign_id_attribute: '#{detail[:detail_foreign_key] || detail[:foreign_key_column]}', foreign_id: #{detail[:grid_id]}_foreign_id}})
-								.setCaption("#{detail[:caption]} : "+ #{detail[:grid_id]}_foreign_id)
+								.setCaption("#{detail[:caption]}" + #{detail[:grid_id]}_foreign_id)
 								.trigger('reloadGrid'); 							
 					}^
 				)
-
+				
 				# Clear the slave detail grid when ever the master detail is reloaded (as nothing should be selected).
 				add_event :loadComplete, Javascript.new(
 					%Q^
 					function(data) { 
 							#{detail[:grid_id]}_foreign_id_attribute = null
 							#{detail[:grid_id]}_foreign_id = null
-							jQuery("##{detail[:grid_id]}").setCaption("#{detail[:caption]} : ")
+							jQuery("##{detail[:grid_id]}").setCaption("#{detail[:caption]}")
 								.trigger('reloadGrid'); 							
 					}^
 				
-				)	
+				)
 			end
 		end
 	end
@@ -491,6 +472,128 @@ module JqgridView
 	    		onClickButton: function (){jQuery("##{@id}").jqGrid('columnChooser')}})
 			^
 		end
+	end
+		
+	# We need to inject additional items into the post data returned to the server to provide the column attributes we need to be
+	# returned, foreign key attribute and its value for supporting detail grids and any external grid control values needed by the
+	# controller because they are tested directly or used to augment the search criteria.
+	# The external controls are passed in in the grid options with a key of :external_controls as a hash or array of hashes.  Each
+	# hash has the following entries:
+	#      :control_id          the id of the control to interrogate.
+	#      :attrib_name         the params attribute name used to pass the control's value back to the server
+	#      :use_in_search		set to true if the attribute (direct, virtual or path to attribute in another table) is to be used
+	# 							to qualify the search/filter of the displayed results.  If it is not true then the controller is 
+	# 							assumed to use it in some way.
+	#      :mapping				if present, is a hash keyed by the control's values with each entry being a 'value map hash'.
+	# The value map hash has the following entries:
+	# 		:attrib_name		same use as above, but may be absent for this control value to be a no-op.
+	# 		:use_in_search 		same as above.
+	#       :value 				if present this value will be used instead of the control's value
+	# The mapping feature allows different control values to be treated differently, maybe to not be flagged to the controller, or 
+	# to use a different attribute name, etc.. 
+	
+	def augment_post_data
+		raise "Cannot override 'serializeRowData' option as it is already set" 				if @grid_options[:serializeRowData]
+		raise "Cannot override 'serializeGridData' option as it is already set" 			if @grid_options[:serializeGridData]
+		raise "Cannot override 'add_options[:onclickSubmit]' option as it is already set" 	if @grid_options[:add_options][:onclickSubmit] 	
+
+		grid_columns = "postdata.grid_columns = #{@id}_grid_columns"
+
+		# If the foreign id attribute is null then we remove it from postdata as this seems to be persistent across grid operations
+		# and by removing it will cause the detail grid to go empty, maybe as a result of the master grid being reloaded.
+		if @grid_options.delete(:slave_detail)
+			 slave_detail = 
+ 			   "postdata.slave_detail = true
+				if (#{@id}_foreign_id_attribute == null)
+				{
+					delete postdata.foreign_id_attribute
+					delete postdata.foreign_id						
+				}\n"
+		else
+			slave_detail = ''
+		end
+
+		external_controls =  @grid_options.delete(:external_controls)
+
+		if external_controls
+			external_controls = [external_controls] if external_controls.kind_of? Hash
+			
+			# If the attrib_name changes from invocation to invocation the previous attrib_name will still hang around
+			# do delete them all before we start.
+			attrib_params = []
+			external_controls.each do |c|
+				attrib_params << c[:attrib_name]
+				c[:values].each {|k, v| attrib_params << v[:attrib_name]} if c[:values]
+			end	
+			delete_attrib_params = attrib_params.compact.uniq.map {|p| "delete postdata.#{p}"}.join("\n")
+
+	       	control_access =
+		 	%Q^
+			#{delete_attrib_params}
+			external_controls = #{external_controls.to_json}
+			$.each (external_controls, function (i, c)
+				{
+					control_value = document.getElementById(c.control_id).value
+					if (c.mapping)
+					{
+						if (c.mapping[control_value])
+						{
+							if (c.mapping[control_value].attrib_name)
+							{
+								if (c.mapping[control_value].value)
+									postdata[c.mapping[control_value].attrib_name] = c.mapping[control_value].value
+								else
+									postdata[c.values[control_value].attrib_name] = value
+								if (c.mapping[control_value].use_in_search)
+									postdata._search = 'true'
+							}
+						}
+					}
+					else
+					{
+						postdata[c.attrib_name] = value
+						if (c.use_in_search)
+							postdata._search = 'true'
+					}		
+				}
+			)
+			^						
+		end
+		# control_access << "postdata.#{c[:attrib_name]} = document.getElementById('#{c[:control_id]}').value\n"
+		# control_access << "postdata._search = 'true'\n" if c[:use_in_search]
+
+		@grid_options[:serializeRowData] = 
+			Javascript.new("function (postdata)
+	 						{
+								delete postdata.oper
+								#{grid_columns}
+								#{slave_detail}
+								#{control_access}
+								return postdata
+							}")
+	
+		@grid_options[:serializeGridData] = 
+			Javascript.new("function (postdata) 
+							{
+								#{grid_columns}
+								#{slave_detail}
+								#{control_access}
+								return postdata
+							}")
+	
+
+		# If the foreign_id is defined for this grid then this grid is a detail grid and in order to add a
+		# new entry to it we need to provide the foreign key attribute name and its value.  For a master grid
+		# or when no detail grid exists then this is effectively ignored.
+		@grid_options[:add_options][:onclickSubmit] = 
+			Javascript.new("function(params, postdata) 
+							{	
+								delete postdata.oper
+								#{grid_columns}
+								#{slave_detail}
+								#{control_access}
+								return postdata
+							}")	
 	end
 	
     # Recalculate width of grid based on parent container.
