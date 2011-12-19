@@ -327,6 +327,7 @@ module JqgridView
 	def master_details
 		if details = @grid_options.delete(:master_details)
 			details = [details] if details.kind_of? Hash
+			@grid_globals << %Q^var slave_grids = {#{details.map {|d| "#{d[:grid_id]}:true"}.join(', ')}}^
 			details.each do |detail|
 				# Make details of the foreign key available as globals so an add on a detail grid can use them.
 				@grid_globals << "var #{detail[:grid_id]}_foreign_id_attribute = null"
@@ -361,7 +362,7 @@ module JqgridView
     # When data are loaded into the grid, call the Javascript function options[:grid_loaded] (defined by the user)
 	def grid_loaded_options (callback)
 		if callback = @grid_options.delete(callback)
-			@grid_methods << %Q^	loadComplete: function(){#{callback}();}^
+			add_event :loadComplete, Javascript.new("function() {{#{callback}()}"
 		end
 	end
 
@@ -501,17 +502,18 @@ module JqgridView
 
 		# If the foreign id attribute is null then we remove it from postdata as this seems to be persistent across grid operations
 		# and by removing it will cause the detail grid to go empty, maybe as a result of the master grid being reloaded.
-		if @grid_options.delete(:slave_detail)
-			 slave_detail = 
- 			   "postdata.slave_detail = true
-				if (#{@id}_foreign_id_attribute == null)
-				{
-					delete postdata.foreign_id_attribute
-					delete postdata.foreign_id						
-				}\n"
-		else
-			slave_detail = ''
-		end
+		slave_detail = 
+		%Q^
+		if (slave_grids.#{@id})
+		{
+			postdata.slave_detail = true
+			if (#{@id}_foreign_id_attribute == null)
+			{
+				delete postdata.foreign_id_attribute
+				delete postdata.foreign_id						
+			}
+		}
+		^	
 
 		external_controls =  @grid_options.delete(:external_controls)
 
@@ -559,8 +561,6 @@ module JqgridView
 			)
 			^						
 		end
-		# control_access << "postdata.#{c[:attrib_name]} = document.getElementById('#{c[:control_id]}').value\n"
-		# control_access << "postdata._search = 'true'\n" if c[:use_in_search]
 
 		@grid_options[:serializeRowData] = 
 			Javascript.new("function (postdata)
