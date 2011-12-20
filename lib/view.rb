@@ -320,7 +320,7 @@ module JqgridView
 	# The options hash key is now :master_details and the value for this key is either a hash (for a single detail) 
 	# or an array of hashes (for multiple details).  A detail hash has the following keys	
 	#     :grid_id				the id of the grid to use to display the detail view
-	#     :caption				caption string
+	#     :caption				caption string (can have $column_name entries)
 	#     :foreign_key_column	the column in the master table holding the foreign key
 	# 	  :detail_foreign_key	the attribute in the detail table to match the master foreign key against (can be omitted if the same)
 
@@ -332,13 +332,18 @@ module JqgridView
 				# Make details of the foreign key available as globals so an add on a detail grid can use them.
 				@grid_globals << "var #{detail[:grid_id]}_foreign_id_attribute = null"
 				@grid_globals << "var #{detail[:grid_id]}_foreign_id = null"
+				caption = detail[:caption]
+				if caption !~ /\$/
+					caption += "$#{detail[:foreign_key_column]}"
+				end
 				add_event :onSelectRow, Javascript.new(
 					%Q^
 					function(ids) { 
 							#{detail[:grid_id]}_foreign_id_attribute = '#{detail[:foreign_key_column]}'
 							#{detail[:grid_id]}_foreign_id = jQuery('##{@id}').getRowData (ids)['#{detail[:foreign_key_column]}']
+							caption = '#{caption}'.replace (/\\$([a-zA-Z0-9_.]+)/g, function (str, p1) {return jQuery('##{@id}').getRowData (ids)[p1]})
 							jQuery("##{detail[:grid_id]}").setGridParam({postData: {foreign_id_attribute: '#{detail[:detail_foreign_key] || detail[:foreign_key_column]}', foreign_id: #{detail[:grid_id]}_foreign_id}})
-								.setCaption("#{detail[:caption]}" + #{detail[:grid_id]}_foreign_id)
+								.setCaption(caption)
 								.trigger('reloadGrid'); 							
 					}^
 				)
@@ -349,7 +354,7 @@ module JqgridView
 					function(data) { 
 							#{detail[:grid_id]}_foreign_id_attribute = null
 							#{detail[:grid_id]}_foreign_id = null
-							jQuery("##{detail[:grid_id]}").setCaption("#{detail[:caption]}")
+							jQuery("##{detail[:grid_id]}").setCaption("#{detail[:caption].gsub(/\$[a-zA-Z0-9_.]+/, '')}")
 								.trigger('reloadGrid'); 							
 					}^
 				
