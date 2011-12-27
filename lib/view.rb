@@ -360,6 +360,8 @@ module JqgridView
 				
 				)
 			end
+		else
+			@grid_globals << %Q^var slave_grids = {}^	
 		end
 	end
 	
