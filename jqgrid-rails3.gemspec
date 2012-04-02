@@ -86,7 +86,7 @@ Gem::Specification.new do |s|
     "test/test_helper.rb"
   ]
   s.homepage = "http://www.2dconcept.com/jquery-grid-rails-plugin"
-  s.require_paths = ["lib"]
+  s.require_paths = ["lib tasks"]
   s.rubygems_version = "1.8.10"
   s.summary = "jQuery grid plugin for rails 3 packed as gem."
 

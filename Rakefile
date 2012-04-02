@@ -35,7 +35,7 @@ begin
     gem.authors = "Anthony Heukmes"
     gem.email = "KharkivReM@gmail.com"
     gem.homepage    = "http://www.2dconcept.com/jquery-grid-rails-plugin"
-    gem.require_paths = [%q{lib}]
+    gem.require_paths = [%q{lib tasks}]
     gem.files.exclude "Rakefile"
     gem.files.exclude "VERSION"
     gem.files.exclude "MIT-LICENSE"
