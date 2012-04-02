@@ -29,8 +29,8 @@ module JqgridView
   	def jqgrid_stylesheets(theme = "default")
       stylesheet_link_tag 	"jqgrid/themes/#{theme}/jquery-ui-1.8.custom.css", 
         					'jqgrid/ui.jqgrid.css', 
-							'jqgrid/ui.multiselect.css',
-        					:cache => "jqgrid-#{theme}-css"
+							'jqgrid/ui.multiselect.css'#,
+        					#:cache => "jqgrid-#{theme}-css"
     end
 
 	def jqgrid_javascripts
@@ -41,8 +41,8 @@ module JqgridView
 		if Rails::VERSION::MAJOR >= 3 && Rails::VERSION::MINOR >= 1
 			javascript_include_tag 	"jqgrid/i18n/grid.locale-#{locale}.js",
 									'jqgrid/ui.multiselect.js', 
-									'jqgrid/jquery.jqGrid.src.js',
-			        				:cache => 'jqgrid-js'
+									'jqgrid/jquery.jqGrid.src.js'#,
+			        				#:cache => 'jqgrid-js'
 		else
 			javascript_include_tag  'jqgrid/jquery-ui-1.8.custom.min.js',
 									"jqgrid/i18n/grid.locale-#{locale}.js",
