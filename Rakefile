@@ -21,3 +21,26 @@ Rake::RDocTask.new(:rdoc) do |rdoc|
   rdoc.rdoc_files.include('README')
   rdoc.rdoc_files.include('lib/**/*.rb')
 end
+
+
+begin
+  require "jeweler"
+  Jeweler::Tasks.new do |gem|
+    gem.name = "jqgrid-rails3"
+    gem.summary     = "jQuery grid plugin for rails 3 packed as gem."
+    gem.description = "jQuery grid plugin for rails 3 packed as gem."
+    gem.files = Dir["{lib}/**/*", "{public}/**/*", "{spec}/**/*", "{test}/**/*"]
+    # other fields that would normally go in your gemspec
+    # like authors, email and has_rdoc can also be included here
+    gem.authors = "Anthony Heukmes"
+    gem.email = "KharkivReM@gmail.com"
+    gem.homepage    = "http://www.2dconcept.com/jquery-grid-rails-plugin"
+    gem.require_paths = [%q{lib}]
+    gem.files.exclude "Rakefile"
+    gem.files.exclude "VERSION"
+    gem.files.exclude "MIT-LICENSE"
+    gem.files.exclude "Gemfile.lock"
+  end
+rescue
+  puts "Jeweler or one of its dependencies is not installed."
+end
