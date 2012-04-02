@@ -1,4 +1,7 @@
 require "jqgrid-rails3/version"
+require 'view'
+require 'filter'
+require 'crud'
 
 module Jqgrid
   class Railtie < Rails::Railtie
