@@ -93,7 +93,11 @@ module JqgridFilter
 	# protecting agains SQL injection.  Use LIKE in general but for an id field
 	# this doesn't make sense so force an exact match.
 	def filter_by_conditions (filter_columns)
-		query = filter_columns.keys.map {|c| c =~ /id$/ ? "#{c} = ?" : "#{c} LIKE ?"}.join(' AND ')
+		#query = filter_columns.keys.map {|c| c =~ /id$/ ? "#{c} = ?" : "#{c} LIKE ?"}.join(' AND ')
+                query = filter_columns.keys.map {|c| 
+                  col = (ar = c.split(".")).size > 1 ? ar.last : c 
+                  col =~ /id$/ ? "#{col} = ?" : "cast(#{col} as varchar) LIKE ?"
+                }.join(' AND ')
 		data = filter_columns.keys.map {|c|  c =~ /id$/ ? "#{filter_columns[c]}" : "%#{filter_columns[c]}%"}
 		[query] + data
 	end
@@ -149,8 +153,17 @@ module JqgridFilter
 			model_class.all
 		else
 			# Query AR to get the super set of what we want.
-			sql_query, sql_query_data = filter_by_conditions(conditions)
-			model_class.where(sql_query, sql_query_data)
+                        #sql_query, sql_query_data = filter_by_conditions(conditions)
+			sql_query_data = filter_by_conditions(conditions)
+
+                        joins = []
+                        conditions.keys.map{|key| if ((key_arr = key.split(".")).size > 1); joins << key_arr.first; end}
+                        joins_string = (joins.empty?) ? "" : "." + joins.map{|j| "joins(:#{j.to_sym})"}.join(".")
+                        # line below will add search for columns with names like 'user.username'
+                        eval("#{model_class}#{joins_string}").where(sql_query_data)
+
+			#model_class.where(sql_query, sql_query_data)
+			#model_class.where(sql_query_data)
 		end
 	end
 
